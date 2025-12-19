@@ -1,0 +1,4 @@
+# Add your Python package dependencies here, for example:
+requests==2.32.*
+google-genai==1.47.*
+Pillow==11.2.*

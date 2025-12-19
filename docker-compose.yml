@@ -1,0 +1,33 @@
+version: '3'
+services:
+  python-scripts:
+    build: .
+    volumes:
+      - ./app:/app
+    environment:
+      - DB_HOST=mariadb
+      - DB_USER=testuser
+      - DB_PASSWORD=testpass
+      - DB_NAME=testdb
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    command: tail -f /dev/null
+    stdin_open: true
+    tty: true
+
+#    depends_on:
+#      - mariadb
+
+#  mariadb:
+#    image: mariadb:10.11
+#    restart: always
+#    environment:
+#      - MARIADB_ROOT_PASSWORD=rootpass
+#      - MARIADB_DATABASE=testdb
+#      - MARIADB_USER=testuser
+#      - MARIADB_PASSWORD=testpass
+#    ports:
+#      - "3306:3306"
+#    volumes:
+#      - mariadb_data:/var/lib/mysql
+#volumes:
+#  mariadb_data:
