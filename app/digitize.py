@@ -1,7 +1,5 @@
-import os
-import google.genai as genai
-from google.genai import types
 from image_utils import get_image_files_from_folder, load_image_as_part
+from gemini_utils import get_gemini_client, generate_transcription
 
 # Configuration
 # List of folder names to process
@@ -18,13 +16,8 @@ Your task is to accurately transcribe hand- and machine-written biological speci
 """
 temperature = 0.0
 
-api_key = os.getenv("GEMINI_API_KEY")
-
 # Initialize the Gemini client
-if not api_key:
-    raise ValueError("API key is not set. Please set GEMINI_API_KEY environment variable.")
-
-client = genai.Client(api_key=api_key)
+client = get_gemini_client()
 
 # Collect all image files from all folders
 all_image_files = []
@@ -55,20 +48,18 @@ for image_file in all_image_files:
         # Load image and create part using helper function
         image_part = load_image_as_part(image_file)
         
-        # Generate content with the image and system prompt
-        response = client.models.generate_content(
-            model=model_name,
-            contents=[image_part],
-            config=types.GenerateContentConfig(
-                temperature=temperature,
-                system_instruction=system_prompt,
-                thinking_config=types.ThinkingConfig(thinking_budget=128)
-            )
+        # Generate transcription using Gemini API
+        response_text = generate_transcription(
+            client=client,
+            image_part=image_part,
+            model_name=model_name,
+            system_prompt=system_prompt,
+            temperature=temperature
         )
         
         # Print the response
         print("Response:")
-        print(response.text)
+        print(response_text)
         print("-" * 50)
         
     except Exception as e:

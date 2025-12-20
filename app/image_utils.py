@@ -6,14 +6,13 @@ from google.genai import types
 
 
 # Supported image extensions
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 # MIME type mapping
 MIME_TYPE_MAP = {
     '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg',
     '.png': 'image/png',
-    '.gif': 'image/gif',
     '.webp': 'image/webp'
 }
 
