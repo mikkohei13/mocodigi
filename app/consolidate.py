@@ -13,9 +13,37 @@ folder_names = [
 ]
 
 model_name = "gemini-2.5-flash"
+model_name = "gemini-3-pro-preview"
 
 system_prompt = """
-Your task is to consolidate and refine multiple transcriptions of the same labels of a single biological specimen. You will receive transcriptions from multiple images. Review all the transcriptions, identify any duplicated text, inconsistencies, errors, or areas that need clarification. Provide a consolidated, refined version that maintains the authenticity of the historical text while improving accuracy where possible. In your final response write Consolidation: followed only by your consolidated transcription. Don't include any other text in your response.
+Your task is to consolidate and refine multiple raw transcripts into a single, coherent set of label text for one biological specimen. 
+
+You will receive between 2 and 10 raw transcripts derived from different image angles of the same specimen. The specimen carries 1 to 5 separate physical labels. Note that each raw transcript is likely incomplete, fragmented, or partially overlapping with others. 
+
+Review all the input transcripts to reconstruct the full text of the original labels. Identify duplicated text across the inputs, resolve inconsistencies, and stitch together partial fragments. Provide a final version that maintains the authenticity of the historical text, including abbreviations, codes, dates, etc. exactly as they appear. 
+
+# Rules:
+
+- Ignore transcribed text that is clearly noise, such as scattered characters unconnected to words.
+- Merge overlapping text. If multiple transcripts contain the same text (even in varied formats), consolidate them into the single most accurate representation.
+- Be careful with numbers, only consolidate them if they appear similarly in multiple transcripts.
+- Maintain the separation between distinct physical labels using line breaks.
+- Fix obvious OCR typos based on context.
+- Be strictly accurate with numbers. Do not combine fragments of numbers unless the match is exact in several similar transcripts. If there is a conflict or ambiguity between numbers in different transcripts, do not guess. Instead ignore such numbers.
+
+In your final response, write "Consolidation:" followed only by your consolidated transcription. Do not include any other text, conversational filler, or descriptions of the labels in your response.
+
+# Context:
+
+- The specimen could have been collected anywhere in the world, probably in the 1900s.
+- The labels may be in any language using the Latin alphabet with diacritics.
+- The specimen is an insect belonging to Hemiptera.
+- The labels often contain the following types of information, but **capture all legible content even if it does not fit these categories**:
+  - **Locality names:** country, region, abbreviation, coordinates.
+  - **Collection Data:** dates (months often in Roman numerals), and collector names (sometimes with 'leg' or 'coll').
+  - **Taxonomy:** binomial scientific names, author names, and determiner names (sometimes with 'det').
+  - **Curatorial:** loan info, catalog numbers, type status.
+
 """
 
 temperature = 0.0
@@ -225,7 +253,7 @@ else:
         transcript_count += 1
 
         # Content before each transcription
-        concatenated_text += f"# Transcript {transcript_count}:\n\n"
+        concatenated_text += f"## Transcript {transcript_count}:\n\n"
 
         concatenated_text += transcription
 
