@@ -49,6 +49,28 @@ def get_image_files_from_folder(folder_path: str) -> list[Path]:
     return sorted(image_files)
 
 
+def collect_image_files_from_folders(folder_names: list[str]) -> list[Path]:
+    """
+    Collect all image files from multiple folders.
+    
+    Args:
+        folder_names: List of folder paths to search for images
+        
+    Returns:
+        List of Path objects for all image files found across all folders
+    """
+    all_image_files = []
+    for folder_name in folder_names:
+        try:
+            image_files = get_image_files_from_folder(folder_name)
+            all_image_files.extend(image_files)
+            print(f"Found {len(image_files)} image(s) in '{folder_name}'")
+        except (FileNotFoundError, ValueError) as e:
+            print(f"Warning: {e}")
+            continue
+    return all_image_files
+
+
 def load_image_as_part(image_file: Path) -> types.Part:
     """
     Load an image file and convert it to a Part object for the Gemini API.

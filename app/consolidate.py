@@ -1,15 +1,15 @@
-from image_utils import get_image_files_from_folder
-from gemini_utils import get_gemini_client
+from image_utils import collect_image_files_from_folders
+from gemini_utils import get_gemini_client, generate_consolidation
 from cache_utils import load_cache
 from pathlib import Path
 import json
 from datetime import datetime
-from google.genai import types
 
 # Configuration
 # List of folder names to process
 folder_names = [
-    "images/A01",
+#    "images/A02_single",
+    "images/C11",
 ]
 
 model_name = "gemini-2.5-flash"
@@ -47,7 +47,7 @@ In your final response, write "Consolidation:" followed only by your consolidate
 """
 
 temperature = 0.0
-run_version = "7"
+run_version = "9"
 
 debug = False
 
@@ -157,52 +157,8 @@ def save_consolidation_cache(
     return cache_path
 
 
-def generate_consolidation(
-    client,
-    text_content: str,
-    model_name: str,
-    system_prompt: str,
-    temperature: float = 0.0,
-    thinking_budget: int = 128
-) -> str:
-    """
-    Generate consolidation for concatenated transcriptions using Gemini API.
-    
-    Args:
-        client: Initialized Gemini client
-        text_content: Concatenated transcription text
-        model_name: Name of the Gemini model to use
-        system_prompt: System instruction prompt
-        temperature: Temperature for generation (default: 0.0)
-        thinking_budget: Thinking budget for the model (default: 128)
-        
-    Returns:
-        Response text from the API
-    """
-    # Pass text content directly (no need for Part object for text-only content)
-    response = client.models.generate_content(
-        model=model_name,
-        contents=[text_content],
-        config=types.GenerateContentConfig(
-            temperature=temperature,
-            system_instruction=system_prompt,
-            thinking_config=types.ThinkingConfig(thinking_budget=thinking_budget)
-        )
-    )
-    
-    return response.text
-
-
 # Collect all image files from all folders
-all_image_files = []
-for folder_name in folder_names:
-    try:
-        image_files = get_image_files_from_folder(folder_name)
-        all_image_files.extend(image_files)
-        print(f"Found {len(image_files)} image(s) in '{folder_name}'")
-    except (FileNotFoundError, ValueError) as e:
-        print(f"Warning: {e}")
-        continue
+all_image_files = collect_image_files_from_folders(folder_names)
 
 if not all_image_files:
     print("No image files found in any of the specified folders")

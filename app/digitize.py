@@ -1,4 +1,4 @@
-from image_utils import get_image_files_from_folder, load_image_as_part
+from image_utils import collect_image_files_from_folders, load_image_as_part
 from gemini_utils import get_gemini_client, generate_transcription
 from cache_utils import cache_exists, load_cache, save_cache
 import hashlib
@@ -6,9 +6,10 @@ import hashlib
 # List of folder names to process
 folder_names = [
     "images/A02_single",
-    "images/A01",
-    "images/B01",
-    "images/C01",
+    "images/C11",
+#    "images/A01",
+#    "images/B01",
+#    "images/C01",
 #    "images/C02_single",
 ]
 
@@ -19,21 +20,13 @@ system_prompt = """
 Your task is to accurately transcribe handwritten and typewritten biological specimen labels based on a photograph, minimizing the CER and WER. Work character by character, word by word, line by line, label by label, transcribing the text exactly as it appears on the labels. To maintain the authenticity of the historical text, retain spelling errors, grammar, syntax, capitalization, and punctuation. Transcribe all the text on the labels. They may be in any language using Latin alphabet with diacritics, and may also contain numbers, dates, codes and abbreviations. In your final response write Transcription: followed only by your transcription. Do not include any other text, conversational filler, or descriptions of the labels in your response.
 """
 temperature = 0.0
-run_version = "8"
+run_version = "9"
 
 # Initialize the Gemini client
 client = get_gemini_client()
 
 # Collect all image files from all folders
-all_image_files = []
-for folder_name in folder_names:
-    try:
-        image_files = get_image_files_from_folder(folder_name)
-        all_image_files.extend(image_files)
-        print(f"Found {len(image_files)} image(s) in '{folder_name}'")
-    except (FileNotFoundError, ValueError) as e:
-        print(f"Warning: {e}")
-        continue
+all_image_files = collect_image_files_from_folders(folder_names)
 
 if not all_image_files:
     print("No image files found in any of the specified folders")
