@@ -5,9 +5,9 @@ import hashlib
 # Configuration
 # List of folder names to process
 folder_names = [
-    "images/A02_single",
-    "images/C11",
-#    "images/A01",
+#    "images/A02_single",
+#    "images/C11",
+    "images/A01",
 #    "images/B01",
 #    "images/C01",
 #    "images/C02_single",
@@ -20,7 +20,7 @@ system_prompt = """
 Your task is to accurately transcribe handwritten and typewritten biological specimen labels based on a photograph, minimizing the CER and WER. Work character by character, word by word, line by line, label by label, transcribing the text exactly as it appears on the labels. To maintain the authenticity of the historical text, retain spelling errors, grammar, syntax, capitalization, and punctuation. Transcribe all the text on the labels. They may be in any language using Latin alphabet with diacritics, and may also contain numbers, dates, codes and abbreviations. In your final response write Transcription: followed only by your transcription. Do not include any other text, conversational filler, or descriptions of the labels in your response.
 """
 temperature = 0.0
-run_version = "9"
+run_version = "10"
 
 # Initialize the Gemini client
 client = get_gemini_client()

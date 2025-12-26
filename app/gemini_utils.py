@@ -32,10 +32,11 @@ def generate_content(
     model_name: str,
     system_prompt: str,
     temperature: float = 0.0,
-    thinking_budget: int = 128
+    thinking_budget: int = 128,
+    max_chars: int
 ) -> str:
     """
-    Generate content using Gemini API.
+    Generate content using Gemini API with streaming to prevent excessive token costs.
     
     Args:
         client: Initialized Gemini client
@@ -44,11 +45,12 @@ def generate_content(
         system_prompt: System instruction prompt
         temperature: Temperature for generation (default: 0.0)
         thinking_budget: Thinking budget for the model (default: 128)
+        max_chars: Maximum characters to accumulate before breaking
         
     Returns:
-        Response text from the API
+        Response text from the API (may be truncated if max_chars exceeded)
     """
-    response = client.models.generate_content(
+    response_stream = client.models.generate_content_stream(
         model=model_name,
         contents=[content],
         config=types.GenerateContentConfig(
@@ -58,7 +60,15 @@ def generate_content(
         )
     )
     
-    return response.text
+    collected_text = ""
+    for chunk in response_stream:
+        if chunk.text:
+            collected_text += chunk.text
+            # Break if we exceed the character limit to avoid excessive token costs
+            if len(collected_text) > max_chars:
+                break
+    
+    return collected_text
 
 
 def generate_transcription(
@@ -67,7 +77,8 @@ def generate_transcription(
     model_name: str,
     system_prompt: str,
     temperature: float = 0.0,
-    thinking_budget: int = 128
+    thinking_budget: int = 128,
+    max_chars: int = 200
 ) -> str:
     """
     Generate transcription for an image using Gemini API.
@@ -79,9 +90,10 @@ def generate_transcription(
         system_prompt: System instruction prompt
         temperature: Temperature for generation (default: 0.0)
         thinking_budget: Thinking budget for the model (default: 128)
+        max_chars: Maximum characters to accumulate before breaking (default: 200)
         
     Returns:
-        Response text from the API
+        Response text from the API (may be truncated if max_chars exceeded)
     """
     return generate_content(
         client=client,
@@ -89,7 +101,8 @@ def generate_transcription(
         model_name=model_name,
         system_prompt=system_prompt,
         temperature=temperature,
-        thinking_budget=thinking_budget
+        thinking_budget=thinking_budget,
+        max_chars=max_chars
     )
 
 
@@ -99,7 +112,8 @@ def generate_consolidation(
     model_name: str,
     system_prompt: str,
     temperature: float = 0.0,
-    thinking_budget: int = 128
+    thinking_budget: int = 128,
+    max_chars: int = 200
 ) -> str:
     """
     Generate consolidation for concatenated transcriptions using Gemini API.
@@ -111,9 +125,10 @@ def generate_consolidation(
         system_prompt: System instruction prompt
         temperature: Temperature for generation (default: 0.0)
         thinking_budget: Thinking budget for the model (default: 128)
+        max_chars: Maximum characters to accumulate before breaking (default: 200)
         
     Returns:
-        Response text from the API
+        Response text from the API (may be truncated if max_chars exceeded)
     """
     return generate_content(
         client=client,
@@ -121,6 +136,7 @@ def generate_consolidation(
         model_name=model_name,
         system_prompt=system_prompt,
         temperature=temperature,
-        thinking_budget=thinking_budget
+        thinking_budget=thinking_budget,
+        max_chars=max_chars
     )
 

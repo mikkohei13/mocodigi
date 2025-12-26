@@ -1,4 +1,4 @@
-from image_utils import collect_image_files_from_folders
+from image_utils import get_image_files_from_folder
 from gemini_utils import get_gemini_client, generate_consolidation
 from cache_utils import load_cache
 from pathlib import Path
@@ -8,7 +8,7 @@ from datetime import datetime
 # Configuration
 # List of folder names to process
 folder_names = [
-#    "images/A02_single",
+    "images/A01",
     "images/C11",
 ]
 
@@ -157,100 +157,115 @@ def save_consolidation_cache(
     return cache_path
 
 
-# Collect all image files from all folders
-all_image_files = collect_image_files_from_folders(folder_names)
-
-if not all_image_files:
-    print("No image files found in any of the specified folders")
-    exit(1)
-
 print(f"System prompt: {system_prompt}")
 print(f"Temperature: {temperature}")
 print(f"Model: {model_name}")
 print(f"Run version: {run_version}")
-print(f"Total images to process: {len(all_image_files)}")
-print("-" * 50)
-
-# Get base folder for cache file location (use first folder)
-base_folder = Path(folder_names[0]) if folder_names else Path("images")
-
-# Check if consolidation cache exists
-if consolidation_cache_exists(base_folder, run_version):
-    print("Consolidation cache found, loading from cache...")
-    cache_data = load_consolidation_cache(base_folder, run_version)
-    consolidation_text = cache_data["data"]["consolidation"]
-    print("(Loaded from cache)")
-else:
-    print("No consolidation cache found, generating consolidation...")
-    
-    # Collect all transcriptions from all images
-    all_transcriptions = []
-    for image_file in all_image_files:
-        try:
-            cache_data = load_cache(image_file, run_version)
-            transcription = cache_data["data"]["transcription"]
-            # Remove "Transcription:" prefix if present
-            if transcription.startswith("Transcription:"):
-                transcription = transcription[len("Transcription:"):].lstrip()
-            all_transcriptions.append(f"\n{transcription}\n")
-            print(f"Loaded transcription from {image_file.name}")
-        except FileNotFoundError:
-            print(f"Warning: No transcription cache found for {image_file.name}, skipping...")
-            continue
-    
-    if not all_transcriptions:
-        print("No transcriptions found to consolidate")
-        exit(1)
-    
-    # Concatenate all transcriptions
-    concatenated_text = ""
-    transcript_count = 0
-    for transcription in all_transcriptions:
-        transcript_count += 1
-
-        # Content before each transcription
-        concatenated_text += f"## Transcript {transcript_count}:\n\n"
-
-        concatenated_text += transcription
-
-        # Content after each transcription
-        concatenated_text += "\n\n"
-
-    print(f"Concatenated {len(all_transcriptions)} transcription(s)")
-    
-    # Debug mode: exit before submitting to Gemini
-    if debug:
-        print("DEBUG EXIT:")
-        print("\nConcatenated text that would be sent to Gemini:")
-        print(concatenated_text)
-        exit(0)
-    
-    # Generate consolidation using Gemini API
-    print("Submitting to Gemini for consolidation...")
-    consolidation_text = generate_consolidation(
-        client=client,
-        text_content=concatenated_text,
-        model_name=model_name,
-        system_prompt=system_prompt,
-        temperature=temperature
-    )
-    
-    # Save to consolidation cache
-    cache_path = save_consolidation_cache(
-        base_folder=base_folder,
-        consolidation=consolidation_text,
-        concatenated_transcriptions=concatenated_text,
-        model_name=model_name,
-        prompt=system_prompt,
-        temperature=temperature,
-        run_version=run_version
-    )
-    print(f"Saved to consolidation cache: {cache_path}")
-
-# Print the consolidation result
-print("\n" + "=" * 50)
-print("Consolidation Result:")
+print(f"Processing {len(folder_names)} specimen(s)")
 print("=" * 50)
-print(consolidation_text)
+
+# Process each folder (specimen) separately
+for folder_name in folder_names:
+    print(f"\n{'=' * 50}")
+    print(f"Processing specimen: {folder_name}")
+    print(f"{'=' * 50}")
+    
+    # Get image files from this folder only
+    try:
+        image_files = get_image_files_from_folder(folder_name)
+        print(f"Found {len(image_files)} image(s) in '{folder_name}'")
+    except (FileNotFoundError, ValueError) as e:
+        print(f"Warning: {e}, skipping...")
+        continue
+    
+    if not image_files:
+        print(f"No image files found in '{folder_name}', skipping...")
+        continue
+    
+    # Get base folder for cache file location
+    base_folder = Path(folder_name)
+    
+    # Check if consolidation cache exists
+    if consolidation_cache_exists(base_folder, run_version):
+        print("Consolidation cache found, loading from cache...")
+        cache_data = load_consolidation_cache(base_folder, run_version)
+        consolidation_text = cache_data["data"]["consolidation"]
+        print("(Loaded from cache)")
+    else:
+        print("No consolidation cache found, generating consolidation...")
+        
+        # Collect all transcriptions from images in this folder
+        all_transcriptions = []
+        for image_file in image_files:
+            try:
+                cache_data = load_cache(image_file, run_version)
+                transcription = cache_data["data"]["transcription"]
+                # Remove "Transcription:" prefix if present
+                if transcription.startswith("Transcription:"):
+                    transcription = transcription[len("Transcription:"):].lstrip()
+                all_transcriptions.append(f"\n{transcription}\n")
+                print(f"Loaded transcription from {image_file.name}")
+            except FileNotFoundError:
+                print(f"Warning: No transcription cache found for {image_file.name}, skipping...")
+                continue
+        
+        if not all_transcriptions:
+            print(f"No transcriptions found to consolidate for '{folder_name}', skipping...")
+            continue
+        
+        # Concatenate all transcriptions
+        concatenated_text = ""
+        transcript_count = 0
+        for transcription in all_transcriptions:
+            transcript_count += 1
+
+            # Content before each transcription
+            concatenated_text += f"## Transcript {transcript_count}:\n\n"
+
+            concatenated_text += transcription
+
+            # Content after each transcription
+            concatenated_text += "\n\n"
+
+        print(f"Concatenated {len(all_transcriptions)} transcription(s)")
+        
+        # Debug mode: exit before submitting to Gemini
+        if debug:
+            print("DEBUG EXIT:")
+            print("\nConcatenated text that would be sent to Gemini:")
+            print(concatenated_text)
+            exit(0)
+        
+        # Generate consolidation using Gemini API
+        print("Submitting to Gemini for consolidation...")
+        consolidation_text = generate_consolidation(
+            client=client,
+            text_content=concatenated_text,
+            model_name=model_name,
+            system_prompt=system_prompt,
+            temperature=temperature
+        )
+        
+        # Save to consolidation cache
+        cache_path = save_consolidation_cache(
+            base_folder=base_folder,
+            consolidation=consolidation_text,
+            concatenated_transcriptions=concatenated_text,
+            model_name=model_name,
+            prompt=system_prompt,
+            temperature=temperature,
+            run_version=run_version
+        )
+        print(f"Saved to consolidation cache: {cache_path}")
+
+    # Print the consolidation result for this specimen
+    print("\n" + "-" * 50)
+    print(f"Consolidation Result for {folder_name}:")
+    print("-" * 50)
+    print(consolidation_text)
+    print("-" * 50)
+
+print("\n" + "=" * 50)
+print("All specimens processed")
 print("=" * 50)
 
