@@ -1,6 +1,6 @@
 # mocodigi
 
-This is an ongoing project to test and develop methods for digitizing biological museum specimens. The basic idea is to take multiple photographs of a pinned insect and its labels from different angles, then use LLMs and other algorithms to perform OCR and refine the extracted label data.
+A system under development for digitizing biological museum specimens, specifically pinned insects. The system processes multiple photographs of each specimen taken from different angles, extracts text from specimen labels using a vision-language model, and consolidates the transcriptions into accurate, complete label data using a LLM. The extracted information is cached in json files.
 
 ## Development principles
 
@@ -18,8 +18,39 @@ This is an ongoing project to test and develop methods for digitizing biological
 - Main scripts are located in the `app` folder.
 - Utility functions are also in the `app` folder, in files ending with `_utils.py`.
 - Images are stored in the `images` subfolder. Each specimen has its own subfolder (e.g. `A01`). Output files are stored in an `artifacts` subfolder within each specimen folder.
+- `database` subfolder contains scripts for database hat is used for retrieval-augmented generation (RAG)
 
-## Setup 
+## File structure
 
-- Database UI at http://localhost:5050
-- Login locally with admin@example.com / admin
+- `docker-compose.yml` - Docker services
+- `app/digitize.py` - Transcribes labels from specimen images using LLM
+- `app/consolidate.py` - Consolidates multiple transcriptions from different angles into a single refined label text
+- `app/*_utils.py` - Utility modules (image handling, Gemini API, caching, database)
+- `app/database/` - Database schema and initialization scripts
+- `app/images/` - Specimen image folders (one per specimen)
+
+## Setup
+
+### Prerequisites
+
+- Docker and Docker Compose
+- Gemini API key
+
+### Quick start
+
+1. Create `.env` file with:
+   ```
+   POSTGRES_USER=your_user
+   POSTGRES_PASSWORD=your_password
+   POSTGRES_DB=mocodigi
+   GEMINI_API_KEY=your_api_key
+   ```
+
+2. Start services:
+   ```bash
+   docker-compose up --build
+   ```
+
+3. Access database UI:
+   - Adminer: http://localhost:8080
+   - Server: `postgres`, Database: `mocodigi`, Username/Password from `.env`
