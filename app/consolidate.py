@@ -8,8 +8,7 @@ from datetime import datetime
 # Configuration
 # List of folder names to process
 folder_names = [
-    "images/A01",
-    "images/C11",
+    "images/A02_double",
 ]
 
 model_name = "gemini-2.5-flash"
@@ -47,7 +46,7 @@ In your final response, write "Consolidation:" followed only by your consolidate
 """
 
 temperature = 0.0
-run_version = "9"
+run_version = "11"
 
 debug = False
 
@@ -61,14 +60,14 @@ def get_consolidation_cache_path(base_folder: Path, run_version: str) -> Path:
     
     Args:
         base_folder: Path to the base folder (first folder in folder_names)
-        run_version: Version string to include in filename
+        run_version: Version string to include in subfolder name
         
     Returns:
-        Path to the consolidation cache file in the artifacts subdirectory
+        Path to the consolidation cache file in the run_{run_version} subdirectory
     """
-    artifacts_dir = base_folder / "artifacts"
-    cache_filename = f"consolidation_{run_version}.json"
-    return artifacts_dir / cache_filename
+    run_dir = base_folder / f"run_{run_version}"
+    cache_filename = "consolidation.json"
+    return run_dir / cache_filename
 
 
 def consolidation_cache_exists(base_folder: Path, run_version: str) -> bool:
@@ -77,7 +76,7 @@ def consolidation_cache_exists(base_folder: Path, run_version: str) -> bool:
     
     Args:
         base_folder: Path to the base folder
-        run_version: Version string to include in filename
+        run_version: Version string to include in subfolder name
         
     Returns:
         True if cache file exists, False otherwise
@@ -92,7 +91,7 @@ def load_consolidation_cache(base_folder: Path, run_version: str) -> dict:
     
     Args:
         base_folder: Path to the base folder
-        run_version: Version string to include in filename
+        run_version: Version string to include in subfolder name
         
     Returns:
         Dictionary containing cached consolidation data
@@ -132,7 +131,7 @@ def save_consolidation_cache(
     """
     cache_path = get_consolidation_cache_path(base_folder, run_version)
     
-    # Create artifacts directory if it doesn't exist
+    # Create run directory if it doesn't exist
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     
     cache_data = {

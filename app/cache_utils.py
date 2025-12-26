@@ -10,14 +10,14 @@ def get_cache_path(image_file: Path, run_version: str) -> Path:
     
     Args:
         image_file: Path to the image file
-        run_version: Version string to include in filename
+        run_version: Version string to include in subfolder name
         
     Returns:
-        Path to the cache file in the artifacts subdirectory
+        Path to the cache file in the run_{run_version} subdirectory
     """
-    artifacts_dir = image_file.parent / "artifacts"
-    cache_filename = f"{image_file.stem}_transcription_{run_version}.json"
-    return artifacts_dir / cache_filename
+    run_dir = image_file.parent / f"run_{run_version}"
+    cache_filename = f"{image_file.stem}_transcription.json"
+    return run_dir / cache_filename
 
 
 def cache_exists(image_file: Path, run_version: str) -> bool:
@@ -26,7 +26,7 @@ def cache_exists(image_file: Path, run_version: str) -> bool:
     
     Args:
         image_file: Path to the image file
-        run_version: Version string to include in filename
+        run_version: Version string to include in subfolder name
         
     Returns:
         True if cache file exists, False otherwise
@@ -41,7 +41,7 @@ def load_cache(image_file: Path, run_version: str) -> dict:
     
     Args:
         image_file: Path to the image file
-        run_version: Version string to include in filename
+        run_version: Version string to include in subfolder name
         
     Returns:
         Dictionary containing cached transcription data
@@ -78,7 +78,7 @@ def save_cache(
     """
     cache_path = get_cache_path(image_file, run_version)
     
-    # Create artifacts directory if it doesn't exist
+    # Create run directory if it doesn't exist
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     
     cache_data = {

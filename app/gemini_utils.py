@@ -33,7 +33,7 @@ def generate_content(
     system_prompt: str,
     temperature: float = 0.0,
     thinking_budget: int = 128,
-    max_chars: int
+    max_chars: int = 200
 ) -> str:
     """
     Generate content using Gemini API with streaming to prevent excessive token costs.
