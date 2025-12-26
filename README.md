@@ -19,3 +19,7 @@ This is an ongoing project to test and develop methods for digitizing biological
 - Utility functions are also in the `app` folder, in files ending with `_utils.py`.
 - Images are stored in the `images` subfolder. Each specimen has its own subfolder (e.g. `A01`). Output files are stored in an `artifacts` subfolder within each specimen folder.
 
+## Setup 
+
+- Database UI at http://localhost:5050
+- Login locally with admin@example.com / admin
