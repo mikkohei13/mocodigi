@@ -1,4 +1,4 @@
-"""Helper functions for caching transcriptions."""
+"""Helper functions for caching data into json files."""
 import json
 from pathlib import Path
 from datetime import datetime
@@ -93,6 +93,110 @@ def save_cache(
         },
         "data": {
             "transcription": transcription
+        }
+    }
+    
+    with open(cache_path, 'w', encoding='utf-8') as f:
+        json.dump(cache_data, f, indent=2, ensure_ascii=False)
+    
+    return cache_path
+
+
+# Consolidation cache functions
+
+def get_consolidation_cache_path(base_folder: Path, run_version: str) -> Path:
+    """
+    Get the consolidation cache file path.
+    
+    Args:
+        base_folder: Path to the base folder
+        run_version: Version string to include in subfolder name
+        
+    Returns:
+        Path to the consolidation cache file in the run_{run_version} subdirectory
+    """
+    run_dir = base_folder / f"run_{run_version}"
+    cache_filename = "consolidation.json"
+    return run_dir / cache_filename
+
+
+def consolidation_cache_exists(base_folder: Path, run_version: str) -> bool:
+    """
+    Check if a consolidation cache file exists.
+    
+    Args:
+        base_folder: Path to the base folder
+        run_version: Version string to include in subfolder name
+        
+    Returns:
+        True if cache file exists, False otherwise
+    """
+    cache_path = get_consolidation_cache_path(base_folder, run_version)
+    return cache_path.exists()
+
+
+def load_consolidation_cache(base_folder: Path, run_version: str) -> dict:
+    """
+    Load consolidation result from cache file.
+    
+    Args:
+        base_folder: Path to the base folder
+        run_version: Version string to include in subfolder name
+        
+    Returns:
+        Dictionary containing cached consolidation data
+        
+    Raises:
+        FileNotFoundError: If cache file doesn't exist
+        json.JSONDecodeError: If cache file is invalid JSON
+    """
+    cache_path = get_consolidation_cache_path(base_folder, run_version)
+    with open(cache_path, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
+def save_consolidation_cache(
+    base_folder: Path,
+    consolidation: str,
+    concatenated_transcriptions: str,
+    model_name: str,
+    prompt: str,
+    temperature: float,
+    run_version: str
+) -> Path:
+    """
+    Save consolidation result to cache file.
+    
+    Args:
+        base_folder: Path to the base folder
+        consolidation: Consolidated text
+        concatenated_transcriptions: Original concatenated transcriptions
+        model_name: Model name used
+        prompt: System prompt used
+        temperature: Temperature setting used
+        run_version: Run version string
+        
+    Returns:
+        Path to the saved cache file
+    """
+    cache_path = get_consolidation_cache_path(base_folder, run_version)
+    
+    # Create run directory if it doesn't exist
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    cache_data = {
+        "format_version": "0.1",
+        "type": "consolidation",
+        "datetime": datetime.now().isoformat(),
+        "settings": {
+            "run_version": run_version,
+            "model": model_name,
+            "prompt": prompt,
+            "temperature": temperature
+        },
+        "data": {
+            "consolidation": consolidation,
+            "concatenated_transcriptions": concatenated_transcriptions
         }
     }
     

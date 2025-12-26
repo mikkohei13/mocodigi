@@ -6,11 +6,11 @@ import hashlib
 # List of folder names to process
 folder_names = [
     "images/A02_double",
+    "images/C02_double",
 #    "images/C11",
 #    "images/A01",
 #    "images/B01",
 #    "images/C01",
-#    "images/C02_single",
 ]
 
 model_name = "gemini-3-pro-preview"
