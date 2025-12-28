@@ -5,16 +5,20 @@ from pathlib import Path
 from collections import defaultdict
 
 # Field name to analyze (change this to analyze different fields)
-field_name = "verbatimLocality"
-field_name = "county"
 field_name = "recordedBy"
+field_name = "county"
+field_name = "verbatimLocality"
+
+# Filter by country: True for Finnish (FI), False for international (not FI)
+finnish = False
 
 # FinBIF occurrences data file
 input_path = "./secret/HBF.114852-old-invertebrate-specimens/occurrences_random_sample.txt"
 input_path = "./secret/HBF.114852-old-invertebrate-specimens/occurrences.txt"
 
-# Output path based on field name
-output_path = f"./data/{field_name}.json"
+# Output path based on field name and country filter
+prefix = "FI" if finnish else "INTL"
+output_path = f"./data/{prefix}-{field_name}.json"
 
 # Dictionary to count occurrences
 name_counts = defaultdict(int)
@@ -37,8 +41,9 @@ with open(input_path, 'r', encoding='utf-8') as f:
     
     # Process each row
     for row in reader:
-        # Filter rows where countryCode is FI
-        if row.get('countryCode') == 'FI':
+        # Filter rows based on finnish boolean
+        country_code = row.get('countryCode', '')
+        if (finnish and country_code == 'FI') or (not finnish and country_code != 'FI'):
             field_value = row.get(field_name, '')
             
             if field_value:
