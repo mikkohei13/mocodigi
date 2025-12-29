@@ -116,11 +116,11 @@ def generate_consolidation(
     max_chars: int = 200
 ) -> str:
     """
-    Generate consolidation for concatenated transcriptions using Gemini API.
+    Generate consolidation for concatenated transcripts using Gemini API.
     
     Args:
         client: Initialized Gemini client
-        text_content: Concatenated transcription text
+        text_content: Concatenated transcript text
         model_name: Name of the Gemini model to use
         system_prompt: System instruction prompt
         temperature: Temperature for generation (default: 0.0)

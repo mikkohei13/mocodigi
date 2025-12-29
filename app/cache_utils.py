@@ -16,7 +16,7 @@ def get_cache_path(image_file: Path, run_version: str) -> Path:
         Path to the cache file in the run_{run_version} subdirectory
     """
     run_dir = image_file.parent / f"run_{run_version}"
-    cache_filename = f"{image_file.stem}_transcription.json"
+    cache_filename = f"{image_file.stem}_transcript.json"
     return run_dir / cache_filename
 
 
@@ -37,14 +37,14 @@ def cache_exists(image_file: Path, run_version: str) -> bool:
 
 def load_cache(image_file: Path, run_version: str) -> dict:
     """
-    Load transcription from cache file.
+    Load transcript from cache file.
     
     Args:
         image_file: Path to the image file
         run_version: Version string to include in subfolder name
         
     Returns:
-        Dictionary containing cached transcription data
+        Dictionary containing cached transcript data
         
     Raises:
         FileNotFoundError: If cache file doesn't exist
@@ -57,21 +57,24 @@ def load_cache(image_file: Path, run_version: str) -> dict:
 
 def save_cache(
     image_file: Path,
-    transcription: str,
+    raw_transcript: str,
+    transcript: str,
     model_name: str,
     prompt: str,
     temperature: float,
     run_version: str
 ) -> Path:
     """
-    Save transcription to cache file.
+    Save transcript to cache file.
     
     Args:
         image_file: Path to the image file
-        transcription: Transcription text
+        raw_transcript: Raw transcript text (before post-processing)
+        transcript: Processed transcript text
         model_name: Model name used
         prompt: System prompt used
         temperature: Temperature setting used
+        run_version: Run version string
         
     Returns:
         Path to the saved cache file
@@ -92,7 +95,8 @@ def save_cache(
             "temperature": temperature
         },
         "data": {
-            "transcription": transcription
+            "raw_transcript": raw_transcript,
+            "transcript": transcript
         }
     }
     
@@ -158,7 +162,7 @@ def load_consolidation_cache(base_folder: Path, run_version: str) -> dict:
 def save_consolidation_cache(
     base_folder: Path,
     consolidation: str,
-    concatenated_transcriptions: str,
+    concatenated_transcripts: str,
     model_name: str,
     prompt: str,
     temperature: float,
@@ -170,7 +174,7 @@ def save_consolidation_cache(
     Args:
         base_folder: Path to the base folder
         consolidation: Consolidated text
-        concatenated_transcriptions: Original concatenated transcriptions
+        concatenated_transcripts: Original concatenated transcripts
         model_name: Model name used
         prompt: System prompt used
         temperature: Temperature setting used
@@ -196,7 +200,7 @@ def save_consolidation_cache(
         },
         "data": {
             "consolidation": consolidation,
-            "concatenated_transcriptions": concatenated_transcriptions
+            "concatenated_transcripts": concatenated_transcripts
         }
     }
     

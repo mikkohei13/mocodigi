@@ -34,7 +34,7 @@ Review all the input transcripts to reconstruct the full text of the original la
 - Fix obvious OCR typos based on context.
 - Be strictly accurate with numbers. Do not combine fragments of numbers unless the match is exact in several similar transcripts. If there is a conflict or ambiguity between numbers in different transcripts, do not guess. Instead ignore such numbers.
 
-In your final response, write "Consolidation:" followed only by your consolidated transcription. Do not include any other text, conversational filler, or descriptions of the labels in your response.
+In your final response, write "Consolidation:" followed only by your consolidated transcript. Do not include any other text, conversational filler, or descriptions of the labels in your response.
 
 # Context:
 
@@ -50,7 +50,7 @@ In your final response, write "Consolidation:" followed only by your consolidate
 """
 
 temperature = 0.0
-run_version = "11"
+run_version = "12"
 
 debug = False
 
@@ -94,40 +94,38 @@ for folder_name in folder_names:
     else:
         print("No consolidation cache found, generating consolidation...")
         
-        # Collect all transcriptions from images in this folder
-        all_transcriptions = []
+        # Collect all transcripts from images in this folder
+        all_transcripts = []
         for image_file in image_files:
             try:
                 cache_data = load_cache(image_file, run_version)
-                transcription = cache_data["data"]["transcription"]
-                # Remove "Transcription:" prefix if present
-                if transcription.startswith("Transcription:"):
-                    transcription = transcription[len("Transcription:"):].lstrip()
-                all_transcriptions.append(f"\n{transcription}\n")
-                print(f"Loaded transcription from {image_file.name}")
+                transcript = cache_data["data"]["transcript"]
+
+                all_transcripts.append(f"\n{transcript}\n")
+                print(f"Loaded transcript from {image_file.name}")
             except FileNotFoundError:
-                print(f"Warning: No transcription cache found for {image_file.name}, skipping...")
+                print(f"Warning: No transcript cache found for {image_file.name}, skipping...")
                 continue
         
-        if not all_transcriptions:
-            print(f"No transcriptions found to consolidate for '{folder_name}', skipping...")
+        if not all_transcripts:
+            print(f"No transcripts found to consolidate for '{folder_name}', skipping...")
             continue
         
-        # Concatenate all transcriptions
+        # Concatenate all transcripts
         concatenated_text = ""
         transcript_count = 0
-        for transcription in all_transcriptions:
+        for transcript in all_transcripts:
             transcript_count += 1
 
-            # Content before each transcription
+            # Content before each transcript
             concatenated_text += f"## Transcript {transcript_count}:\n\n"
 
-            concatenated_text += transcription
+            concatenated_text += transcript
 
-            # Content after each transcription
+            # Content after each transcript
             concatenated_text += "\n\n"
 
-        print(f"Concatenated {len(all_transcriptions)} transcription(s)")
+        print(f"Concatenated {len(all_transcripts)} transcript(s)")
         
         # Debug mode: exit before submitting to Gemini
         if debug:
@@ -150,7 +148,7 @@ for folder_name in folder_names:
         cache_path = save_consolidation_cache(
             base_folder=base_folder,
             consolidation=consolidation_text,
-            concatenated_transcriptions=concatenated_text,
+            concatenated_transcripts=concatenated_text,
             model_name=model_name,
             prompt=system_prompt,
             temperature=temperature,

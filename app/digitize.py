@@ -2,6 +2,12 @@ from image_utils import collect_image_files_from_folders, load_image_as_part
 from gemini_utils import get_gemini_client, generate_transcription
 from cache_utils import cache_exists, load_cache, save_cache
 import hashlib
+
+
+def post_process_transcript(transcript: str) -> str:
+    transcript = transcript.replace("Transcription:", "").strip()
+    return transcript
+
 # Configuration
 # List of folder names to process
 folder_names = [
@@ -20,7 +26,7 @@ system_prompt = """
 Your task is to accurately transcribe handwritten and typewritten biological specimen labels based on a photograph, minimizing the CER and WER. Work character by character, word by word, line by line, label by label, transcribing the text exactly as it appears on the labels. To maintain the authenticity of the historical text, retain spelling errors, grammar, syntax, capitalization, and punctuation. Transcribe all the text on the labels. They may be in any language using Latin alphabet with diacritics, and may also contain numbers, dates, codes and abbreviations. In your final response write Transcription: followed only by your transcription. Do not include any other text, conversational filler, or descriptions of the labels in your response.
 """
 temperature = 0.0
-run_version = "11"
+run_version = "12"
 
 # Initialize the Gemini client
 client = get_gemini_client()
@@ -45,12 +51,9 @@ for image_file in all_image_files:
     try:
         # Check if cache exists
         if cache_exists(image_file, run_version):
-            print("Cache found, loading from cache...")
-            cache_data = load_cache(image_file, run_version)
-            response_text = cache_data["data"]["transcription"]
-            print("(Loaded from cache)")
+            print("Cache found, skipping transcription...")
         else:
-            print("No cache found, generating transcription...")
+            print("No cache found, doing transcription...")
             # Load image and create part using helper function
             image_part = load_image_as_part(image_file)
             
@@ -62,11 +65,14 @@ for image_file in all_image_files:
                 system_prompt=system_prompt,
                 temperature=temperature
             )
+
+            processed_response_text = post_process_transcript(response_text)
             
             # Save to cache
             cache_path = save_cache(
                 image_file=image_file,
-                transcription=response_text,
+                raw_transcript=response_text,
+                transcript=processed_response_text,
                 model_name=model_name,
                 prompt=system_prompt,
                 temperature=temperature,
