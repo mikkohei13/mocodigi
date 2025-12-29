@@ -22,7 +22,7 @@ def main(max_rows=100):
             # Read TSV file
             reader = csv.DictReader(f, delimiter='\t')
             
-            # Read top 100 rows
+            # Read top rows
             rows_to_insert = []
             for i, row in enumerate(reader):
                 if i >= max_rows:
@@ -60,4 +60,4 @@ def main(max_rows=100):
 
 
 if __name__ == "__main__":
-    main(100000)
+    main(10000)

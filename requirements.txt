@@ -3,3 +3,4 @@ requests==2.32.*
 google-genai==1.47.*
 Pillow==11.2.*
 psycopg2-binary==2.9.*
+python-Levenshtein==0.25.*
