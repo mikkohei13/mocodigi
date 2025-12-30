@@ -161,6 +161,7 @@ def load_consolidation_cache(base_folder: Path, run_version: str) -> dict:
 
 def save_consolidation_cache(
     base_folder: Path,
+    raw_consolidation: str,
     consolidation: str,
     concatenated_transcripts: str,
     model_name: str,
@@ -199,6 +200,7 @@ def save_consolidation_cache(
             "temperature": temperature
         },
         "data": {
+            "raw_consolidation": raw_consolidation,
             "consolidation": consolidation,
             "concatenated_transcripts": concatenated_transcripts
         }

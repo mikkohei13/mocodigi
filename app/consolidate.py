@@ -8,11 +8,23 @@ from cache_utils import (
 )
 from pathlib import Path
 
+
+def post_process_consolidation(text_content: str) -> str:
+    text_content = text_content.replace("Consolidation:", "").strip()
+    return text_content
+
+
 # Configuration
 # List of folder names to process
 folder_names = [
-    "images/A02_double",
-    "images/C02_double",
+#    "images/A02_double",
+#    "images/C02_double",
+    "images/A01",
+    "images/B01",
+    "images/B05",
+    "images/C02",
+    "images/C05",
+    "images/C14",
 ]
 
 model_name = "gemini-2.5-flash"
@@ -50,7 +62,7 @@ In your final response, write "Consolidation:" followed only by your consolidate
 """
 
 temperature = 0.0
-run_version = "12"
+run_version = "14"
 
 debug = False
 
@@ -143,11 +155,14 @@ for folder_name in folder_names:
             system_prompt=system_prompt,
             temperature=temperature
         )
+
+        processed_consolidation_text = post_process_consolidation(consolidation_text)
         
         # Save to consolidation cache
         cache_path = save_consolidation_cache(
             base_folder=base_folder,
-            consolidation=consolidation_text,
+            raw_consolidation=consolidation_text,
+            consolidation=processed_consolidation_text,
             concatenated_transcripts=concatenated_text,
             model_name=model_name,
             prompt=system_prompt,
