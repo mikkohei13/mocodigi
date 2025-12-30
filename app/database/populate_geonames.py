@@ -28,6 +28,10 @@ def main(max_rows=100):
                 if i >= max_rows:
                     break
                 
+                # Skip rows where feature_class is spot, undersea or road
+                if row.get('feature_class') in ('S', 'U', 'R'):
+                    continue
+                
                 rows_to_insert.append({
                     'id': int(row['geonameid']),
                     'name': row['name'],
@@ -60,4 +64,4 @@ def main(max_rows=100):
 
 
 if __name__ == "__main__":
-    main(10000)
+    main(1000000)
