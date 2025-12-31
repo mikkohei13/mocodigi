@@ -3,6 +3,7 @@ Retrieval-augmented generation (RAG) utilities.
 '''
 from pathlib import Path
 import json
+import re
 
 
 def load_meta_json(folder_path: str | Path) -> dict:
@@ -26,6 +27,34 @@ def load_meta_json(folder_path: str | Path) -> dict:
         return {}
 
 
+def get_distinct_words(transcripts_content: str) -> list[str]:
+    """
+    Extract distinct words from transcripts content.
+    
+    A word is defined as a continuous alphanumeric string of 4 or more letters
+    (Latin alphabet with diacritics), converted to lowercase.
+    
+    Args:
+        transcripts_content: Content of the transcripts.
+    
+    Returns:
+        List of distinct words (lowercase, sorted).
+    """
+    if not transcripts_content:
+        return []
+    
+    exclude_words = ["loan", "transcript", "zool"]
+
+    # Match alphanumeric sequences of 4+ characters (includes Latin letters with diacritics)
+    # [^\W_] matches Unicode word characters (letters, digits) except underscore
+    words = re.findall(r'[^\W_]{4,}', transcripts_content, re.UNICODE)
+    
+    # Convert to lowercase and get distinct words
+    distinct_words = sorted(set(word.lower() for word in words if word.lower() not in exclude_words))
+    
+    return distinct_words
+
+
 def get_rag_content(folder_path: str | Path = None, transcripts_content: str = None) -> str:
     """
     Generate RAG content with optional metadata from meta.json.
@@ -38,6 +67,10 @@ def get_rag_content(folder_path: str | Path = None, transcripts_content: str = N
     Returns:
         RAG context string with metadata if available.
     """
+
+    distinct_words = get_distinct_words(transcripts_content)
+    print("DEBUG: ", distinct_words)
+
     metadata = load_meta_json(folder_path) if folder_path else {}
     context = "# Context:\n"
     
@@ -49,6 +82,8 @@ def get_rag_content(folder_path: str | Path = None, transcripts_content: str = N
                 context += f"\n- The specimen has been collected in {metadata['country']}."
             else:
                 context += f"\n- The specimen could have been collected anywhere in the world."
+        else:
+            context += f"\n- The specimen could have been collected anywhere in the world."
 
         context += "\n- The specimen belongs to "
         if "class" in metadata:

@@ -31,6 +31,7 @@ folder_names = [
 ]
 
 run_version = "15"
+branch_version = "b" # Set to empty string to use just run_version, or e.g. "b" for "15b"
 
 
 def normalize_text(text: str) -> str:
@@ -96,9 +97,19 @@ def compare_texts(gt_text: str, consolidation_text: str, alphanumeric_only: bool
     return match_percentage, mismatches
 
 
+# Combine run_version and branch_version for consolidation cache
+if branch_version:
+    consolidation_version = f"{run_version}{branch_version}"
+else:
+    consolidation_version = run_version
+
 # Process each folder
 print("=" * 50)
 print("Comparing consolidation to ground truth")
+print(f"Run version: {run_version}")
+if branch_version:
+    print(f"Branch version: {branch_version}")
+print(f"Consolidation version: {consolidation_version}")
 print("=" * 50)
 
 match_percentages = []
@@ -120,10 +131,10 @@ for folder_name in folder_names:
     
     # Load consolidation
     try:
-        cache_data = load_consolidation_cache(base_folder, run_version)
+        cache_data = load_consolidation_cache(base_folder, consolidation_version)
         consolidation_text = cache_data["data"]["consolidation"]
     except FileNotFoundError:
-        print(f"Warning: Consolidation cache not found for run_{run_version}, skipping...")
+        print(f"Warning: Consolidation cache not found for run_{consolidation_version}, skipping...")
         continue
     
     # Print texts

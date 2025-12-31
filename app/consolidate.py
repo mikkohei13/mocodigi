@@ -22,30 +22,33 @@ folder_names = [
 #    "images/C02_double",
     "images/A01",
     "images/B01",
-#    "images/B05",
-#    "images/C02",
-#    "images/C05",
-#    "images/C13",
-#    "images/C14",
+    "images/B05",
+    "images/C02",
+    "images/C05",
+    "images/C13",
+    "images/C14",
     "images/D07",
-#    "images/D08",
-#    "images/D11",
-#    "images/D12",
-#    "images/D14",
-#    "images/D16",
-#    "images/D17",
-#    "images/D22",
-#    "images/D23",
-
+    "images/D08",
+    "images/D11",
+    "images/D12",
+    "images/D14",
+    "images/D16",
+    "images/D17",
+    "images/D22",
+    "images/D23",
 ]
 
 model_name = "gemini-3-pro-preview"
 model_name = "gemini-2.5-flash"
 
 temperature = 0.0
-run_version = "15b"
+run_version = "15"
+branch_version = "b" # Set to empty string to use just run_version, or e.g. "b" for "15b"
 
-debug = True
+# Combine run_version and branch_version for consolidation cache
+consolidation_version = f"{run_version}{branch_version}"
+
+debug = False
 
 system_prompt = """
 Your task is to consolidate and refine multiple raw transcripts into a single, coherent set of label text for one biological specimen. 
@@ -68,10 +71,12 @@ In your final response, write "Consolidation:" followed only by your consolidate
 # Initialize the Gemini client
 client = get_gemini_client()
 
-print(f"System prompt: {system_prompt}")
+#print(f"System prompt: {system_prompt}")
 print(f"Temperature: {temperature}")
 print(f"Model: {model_name}")
 print(f"Run version: {run_version}")
+print(f"Branch version: {branch_version}")
+print(f"Consolidation version: {consolidation_version}")
 print(f"Processing {len(folder_names)} specimen(s)")
 print("=" * 50)
 
@@ -97,9 +102,9 @@ for folder_name in folder_names:
     base_folder = Path(folder_name)
     
     # Check if consolidation cache exists
-    if consolidation_cache_exists(base_folder, run_version):
+    if consolidation_cache_exists(base_folder, consolidation_version):
         print("Consolidation cache found, loading from cache...")
-        cache_data = load_consolidation_cache(base_folder, run_version)
+        cache_data = load_consolidation_cache(base_folder, consolidation_version)
         consolidation_text = cache_data["data"]["consolidation"]
         print("(Loaded from cache)")
     else:
@@ -144,11 +149,12 @@ for folder_name in folder_names:
         # Combine all
         content = rag_content + "\n\n" + transcripts_content
 
+        print(system_prompt)
+        print(content)
+
         # Debug mode: exit before submitting to Gemini
         if debug:
             print("DEBUG EXIT:")
-            print(system_prompt)
-            print(content)
             exit(0)
         
         # Generate consolidation using Gemini API
@@ -168,11 +174,11 @@ for folder_name in folder_names:
             base_folder=base_folder,
             raw_consolidation=consolidation_text,
             consolidation=processed_consolidation_text,
-            transcripts_content=transcripts_content,
+            concatenated_transcripts=transcripts_content,
             model_name=model_name,
             prompt=system_prompt,
             temperature=temperature,
-            run_version=run_version
+            run_version=consolidation_version
         )
         print(f"Saved to consolidation cache: {cache_path}")
 
