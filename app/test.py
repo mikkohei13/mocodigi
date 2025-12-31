@@ -16,10 +16,21 @@ folder_names = [
     "images/B05",
     "images/C02",
     "images/C05",
+    "images/C13",
     "images/C14",
+    "images/D07",
+    "images/D08",
+    "images/D11",
+    "images/D12",
+    "images/D14",
+    "images/D16",
+    "images/D17",
+    "images/D22",
+    "images/D23",
+
 ]
 
-run_version = "14"
+run_version = "15"
 
 
 def normalize_text(text: str) -> str:

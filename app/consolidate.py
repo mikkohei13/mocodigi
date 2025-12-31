@@ -24,11 +24,27 @@ folder_names = [
     "images/B05",
     "images/C02",
     "images/C05",
+    "images/C13",
     "images/C14",
+    "images/D07",
+    "images/D08",
+    "images/D11",
+    "images/D12",
+    "images/D14",
+    "images/D16",
+    "images/D17",
+    "images/D22",
+    "images/D23",
+
 ]
 
-model_name = "gemini-2.5-flash"
 model_name = "gemini-3-pro-preview"
+model_name = "gemini-2.5-flash"
+
+temperature = 0.0
+run_version = "15"
+
+
 
 system_prompt = """
 Your task is to consolidate and refine multiple raw transcripts into a single, coherent set of label text for one biological specimen. 
@@ -60,9 +76,6 @@ In your final response, write "Consolidation:" followed only by your consolidate
   - **Curatorial:** loan info, catalog numbers, type status.
 
 """
-
-temperature = 0.0
-run_version = "14"
 
 debug = False
 
