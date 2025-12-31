@@ -10,14 +10,14 @@ from database.db_utils import get_db_connection
 from Levenshtein import distance as levenshtein_distance
 
 
-search_string = "sammatti"
+search_string = "Teniet el Haad"
 
 # Number of candidates to fetch from database using pg_trgm (fast filtering)
 # Then we'll calculate Levenshtein distance for these and re-sort
-CANDIDATE_LIMIT = 200
+CANDIDATE_LIMIT = 20
 
 # Number of final results to display
-RESULT_LIMIT = 200
+RESULT_LIMIT = 20
 
 
 def main():
