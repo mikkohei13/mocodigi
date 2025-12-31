@@ -6,6 +6,7 @@ from cache_utils import (
     load_consolidation_cache,
     save_consolidation_cache
 )
+from rag_utils import get_rag_content
 from pathlib import Path
 
 
@@ -21,20 +22,20 @@ folder_names = [
 #    "images/C02_double",
     "images/A01",
     "images/B01",
-    "images/B05",
-    "images/C02",
-    "images/C05",
-    "images/C13",
-    "images/C14",
+#    "images/B05",
+#    "images/C02",
+#    "images/C05",
+#    "images/C13",
+#    "images/C14",
     "images/D07",
-    "images/D08",
-    "images/D11",
-    "images/D12",
-    "images/D14",
-    "images/D16",
-    "images/D17",
-    "images/D22",
-    "images/D23",
+#    "images/D08",
+#    "images/D11",
+#    "images/D12",
+#    "images/D14",
+#    "images/D16",
+#    "images/D17",
+#    "images/D22",
+#    "images/D23",
 
 ]
 
@@ -42,9 +43,9 @@ model_name = "gemini-3-pro-preview"
 model_name = "gemini-2.5-flash"
 
 temperature = 0.0
-run_version = "15"
+run_version = "15b"
 
-
+debug = True
 
 system_prompt = """
 Your task is to consolidate and refine multiple raw transcripts into a single, coherent set of label text for one biological specimen. 
@@ -57,27 +58,12 @@ Review all the input transcripts to reconstruct the full text of the original la
 
 - Ignore transcribed text that is clearly noise, such as scattered characters unconnected to words.
 - Merge overlapping text. If multiple transcripts contain the same text (even in varied formats), consolidate them into the single most accurate representation.
-- Be careful with numbers, only consolidate them if they appear similarly in multiple transcripts.
 - Maintain the separation between distinct physical labels using line breaks.
 - Fix obvious OCR typos based on context.
 - Be strictly accurate with numbers. Do not combine fragments of numbers unless the match is exact in several similar transcripts. If there is a conflict or ambiguity between numbers in different transcripts, do not guess. Instead ignore such numbers.
 
 In your final response, write "Consolidation:" followed only by your consolidated transcript. Do not include any other text, conversational filler, or descriptions of the labels in your response.
-
-# Context:
-
-- The specimen could have been collected anywhere in the world, probably in the 1900s.
-- The labels may be in any language using the Latin alphabet with diacritics.
-- The specimen is an insect belonging to Hemiptera.
-- The labels often contain the following types of information, but **capture all legible content even if it does not fit these categories**:
-  - **Locality names:** country, region, abbreviation, coordinates.
-  - **Collection Data:** dates (months often in Roman numerals), and collector names (sometimes with 'leg' or 'coll').
-  - **Taxonomy:** binomial scientific names, author names, and determiner names (sometimes with 'det').
-  - **Curatorial:** loan info, catalog numbers, type status.
-
 """
-
-debug = False
 
 # Initialize the Gemini client
 client = get_gemini_client()
@@ -137,33 +123,39 @@ for folder_name in folder_names:
             continue
         
         # Concatenate all transcripts
-        concatenated_text = ""
+        transcripts_content = ""
         transcript_count = 0
         for transcript in all_transcripts:
             transcript_count += 1
 
             # Content before each transcript
-            concatenated_text += f"## Transcript {transcript_count}:\n\n"
+            transcripts_content += f"## Transcript {transcript_count}:\n"
 
-            concatenated_text += transcript
+            transcripts_content += transcript
 
             # Content after each transcript
-            concatenated_text += "\n\n"
+            transcripts_content += "\n"
 
         print(f"Concatenated {len(all_transcripts)} transcript(s)")
-        
+
+        # Add RAG
+        rag_content = get_rag_content(folder_name, transcripts_content)
+
+        # Combine all
+        content = rag_content + "\n\n" + transcripts_content
+
         # Debug mode: exit before submitting to Gemini
         if debug:
             print("DEBUG EXIT:")
-            print("\nConcatenated text that would be sent to Gemini:")
-            print(concatenated_text)
+            print(system_prompt)
+            print(content)
             exit(0)
         
         # Generate consolidation using Gemini API
         print("Submitting to Gemini for consolidation...")
         consolidation_text = generate_consolidation(
             client=client,
-            text_content=concatenated_text,
+            text_content=transcripts_content,
             model_name=model_name,
             system_prompt=system_prompt,
             temperature=temperature
@@ -176,7 +168,7 @@ for folder_name in folder_names:
             base_folder=base_folder,
             raw_consolidation=consolidation_text,
             consolidation=processed_consolidation_text,
-            concatenated_transcripts=concatenated_text,
+            transcripts_content=transcripts_content,
             model_name=model_name,
             prompt=system_prompt,
             temperature=temperature,
