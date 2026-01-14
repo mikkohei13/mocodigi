@@ -2,6 +2,8 @@
 **/secret/**
 **/secrets/**
 **/data/**
+**/output/**
+
 notes/*
 
 .cursor/

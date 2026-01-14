@@ -9,29 +9,26 @@ import unicodedata
 # Configuration
 # List of folder names to process. Each contain images from a single specimen.
 folder_names = [
-#    "images/A02_double",
-#    "images/C02_double",
-    "images/A01",
-    "images/B01",
-    "images/B05",
-    "images/C02",
-    "images/C05",
-    "images/C13",
-    "images/C14",
-    "images/D07",
-    "images/D08",
-    "images/D11",
-    "images/D12",
-    "images/D14",
-    "images/D16",
-    "images/D17",
-    "images/D22",
-    "images/D23",
-
+    "images/A01 - Copy",
+    "images/B01 - Copy",
+    "images/B05 - Copy",
+    "images/C02 - Copy",
+    "images/C05 - Copy",
+    "images/C13 - Copy",
+    "images/C14 - Copy",
+    "images/D07 - Copy",
+    "images/D08 - Copy",
+    "images/D11 - Copy",
+    "images/D12 - Copy",
+    "images/D14 - Copy",
+    "images/D16 - Copy",
+    "images/D17 - Copy",
+    "images/D22 - Copy",
+    "images/D23 - Copy",
 ]
 
-run_version = "15"
-branch_version = "b" # Set to empty string to use just run_version, or e.g. "b" for "15b"
+run_version = "16"
+branch_version = "" # Set to empty string to use just run_version, or e.g. "b" for "15b"
 
 
 def normalize_text(text: str) -> str:
