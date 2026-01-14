@@ -5,12 +5,12 @@ from pathlib import Path
 from collections import defaultdict
 
 # Field name to analyze (change this to analyze different fields)
-field_name = "recordedBy"
 field_name = "county"
 field_name = "verbatimLocality"
+field_name = "recordedBy"
 
 # Filter by country: True for Finnish (FI), False for international (not FI)
-finnish = False
+finnish = True
 
 # FinBIF occurrences data file
 input_path = "./secret/HBF.114852-old-invertebrate-specimens/occurrences_random_sample.txt"
@@ -55,13 +55,17 @@ with open(input_path, 'r', encoding='utf-8') as f:
                     if name:  # Skip empty strings
                         name_counts[name] += 1
 
+
+# Sort name_counts by value descending
+name_counts = sorted(name_counts.items(), key=lambda x: x[1], reverse=True)
+
 # Create output directory if it doesn't exist
 output_dir = Path(output_path).parent
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # Save as JSON
 with open(output_path, 'w', encoding='utf-8') as f:
-    json.dump(dict(name_counts), f, indent=2, ensure_ascii=False)
+    json.dump(name_counts, f, indent=2, ensure_ascii=False)
 
 print(f"Processed {len(name_counts)} unique {field_name} values")
 print(f"Results saved to {output_path}")
