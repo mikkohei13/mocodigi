@@ -15,6 +15,7 @@ import os
 import csv
 import shelve
 import time
+import json
 from pathlib import Path
 from urllib.parse import quote_plus
 from datetime import datetime
@@ -40,13 +41,21 @@ folder_names = [
     "images/D17 - Copy",
     "images/D22 - Copy",
     "images/D23 - Copy",
+    "images/C10",
+    "images/C11",
+    "images/D07",
+    "images/D09",
+    "images/D14",
 ]
 
 run_version = "16"
 branch_version = "" # Set to empty string to use just run_version, or e.g. "b" for "15b"
 
+# Data source option: "consolidation" or "gt"
+DATA_SOURCE = "gt"  # Options: "consolidation" or "gt"
+
 OUTPUT_DIR = Path("output")
-CACHE_DB = OUTPUT_DIR / "google_geocode_cache.db"
+CACHE_DB = OUTPUT_DIR / "google_geocode_cache_v2.db"
 
 # rate limiting
 last_query_time = 0.0
@@ -69,6 +78,12 @@ def geocode_token(token, cache, api_key):
 
     try:
         data = resp.json()
+        # Print full API response to terminal
+        print("\n" + "=" * 50)
+        print(f"Full API response for token: '{token}'")
+        print("=" * 50)
+        print(json.dumps(data, indent=2, ensure_ascii=False))
+        print("=" * 50 + "\n")
     except Exception as e:
         print(f"Error parsing JSON response for token '{token}': {e}")
         cache[token] = {"status": "error", "error": f"invalid json: {e}"}
@@ -96,6 +111,43 @@ def geocode_token(token, cache, api_key):
     return out
 
 
+def preprocess_text(text):
+    """
+    Preprocess text before geocoding.
+    Removes lines containing "mus." or "muse" (case insensitive) and all lines after,
+    then replaces newlines with a comma and a space.
+    
+    Args:
+        text: Input text string
+        
+    Returns:
+        Processed text string
+    """
+    if not text:
+        return text
+    
+    # Normalize newlines to \n for processing
+    text_normalized = text.replace('\r\n', '\n').replace('\r', '\n')
+    
+    # Split into lines
+    lines = text_normalized.split('\n')
+    
+    # Find the first line containing "mus." or "muse" (case insensitive)
+    filtered_lines = []
+    for line in lines:
+        line_lower = line.lower()
+        if 'mus.' in line_lower or 'muse' in line_lower:
+            # Stop at this line (don't include it or any after)
+            break
+        filtered_lines.append(line)
+    
+    # Join back with newlines
+    text_filtered = '\n'.join(filtered_lines)
+    
+    # Replace newlines with comma and space
+    return text_filtered.replace('\n', ', ')
+
+
 api_key = os.getenv('GOOGLE_API_KEY')
 if not api_key:
     print("Error: GOOGLE_API_KEY environment variable not set")
@@ -107,18 +159,28 @@ if branch_version:
 else:
     consolidation_version = run_version
 
+# Validate DATA_SOURCE
+if DATA_SOURCE not in ["consolidation", "gt"]:
+    print(f"Error: DATA_SOURCE must be 'consolidation' or 'gt', got '{DATA_SOURCE}'")
+    exit(1)
+
 # Create output directory if it doesn't exist
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Generate output filename with datetime
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-OUT_TSV = OUTPUT_DIR / f"google_geocoded_results_{timestamp}.tsv"
+if DATA_SOURCE == "gt":
+    OUT_TSV = OUTPUT_DIR / f"google_geocoded_results_gt_{timestamp}.tsv"
+else:
+    OUT_TSV = OUTPUT_DIR / f"google_geocoded_results_consolidated_run_{consolidation_version}_{timestamp}.tsv"
 
 print(f"Processing {len(folder_names)} folder(s)")
-print(f"Run version: {run_version}")
-if branch_version:
-    print(f"Branch version: {branch_version}")
-print(f"Consolidation version: {consolidation_version}")
+print(f"Data source: {DATA_SOURCE}")
+if DATA_SOURCE == "consolidation":
+    print(f"Run version: {run_version}")
+    if branch_version:
+        print(f"Branch version: {branch_version}")
+    print(f"Consolidation version: {consolidation_version}")
 print(f"Output file: {OUT_TSV}")
 print("=" * 50)
 
@@ -131,12 +193,73 @@ with shelve.open(str(CACHE_DB)) as cache, open(OUT_TSV, "w", newline="", encodin
         print(f"\nProcessing {folder_name}...")
         base_folder = Path(folder_name)
         
-        # Load consolidation data
-        try:
-            cache_data = load_consolidation_cache(base_folder, consolidation_version)
-            consolidation_text = cache_data["data"]["consolidation"]
-        except FileNotFoundError:
-            print(f"Warning: Consolidation cache not found for run_{consolidation_version}, skipping...")
+        # Load data based on DATA_SOURCE
+        if DATA_SOURCE == "consolidation":
+            # Load consolidation data
+            try:
+                cache_data = load_consolidation_cache(base_folder, consolidation_version)
+                text_to_geocode = cache_data["data"]["consolidation"]
+            except FileNotFoundError:
+                print(f"Warning: Consolidation cache not found for run_{consolidation_version}, skipping...")
+                writer.writerow({
+                    "folder": folder_name,
+                    "text": "",
+                    "lat": "",
+                    "lon": "",
+                    "formatted_address": "",
+                    "types": "",
+                    "status": "consolidation_not_found",
+                    "selected": False
+                })
+                continue
+            except Exception as e:
+                print(f"Error loading consolidation for {folder_name}: {e}")
+                writer.writerow({
+                    "folder": folder_name,
+                    "text": "",
+                    "lat": "",
+                    "lon": "",
+                    "formatted_address": "",
+                    "types": "",
+                    "status": f"error_loading: {e}",
+                    "selected": False
+                })
+                continue
+        else:  # DATA_SOURCE == "gt"
+            # Load gt.txt file
+            gt_path = base_folder / "gt.txt"
+            try:
+                if not gt_path.exists():
+                    print(f"Warning: {gt_path} not found, skipping...")
+                    writer.writerow({
+                        "folder": folder_name,
+                        "text": "",
+                        "lat": "",
+                        "lon": "",
+                        "formatted_address": "",
+                        "types": "",
+                        "status": "gt_file_not_found",
+                        "selected": False
+                    })
+                    continue
+                with open(gt_path, 'r', encoding='utf-8') as f:
+                    text_to_geocode = f.read()
+            except Exception as e:
+                print(f"Error loading gt.txt for {folder_name}: {e}")
+                writer.writerow({
+                    "folder": folder_name,
+                    "text": "",
+                    "lat": "",
+                    "lon": "",
+                    "formatted_address": "",
+                    "types": "",
+                    "status": f"error_loading_gt: {e}",
+                    "selected": False
+                })
+                continue
+
+        if not text_to_geocode or not text_to_geocode.strip():
+            status_msg = "empty_consolidation" if DATA_SOURCE == "consolidation" else "empty_gt"
             writer.writerow({
                 "folder": folder_name,
                 "text": "",
@@ -144,40 +267,17 @@ with shelve.open(str(CACHE_DB)) as cache, open(OUT_TSV, "w", newline="", encodin
                 "lon": "",
                 "formatted_address": "",
                 "types": "",
-                "status": "consolidation_not_found",
-                "selected": False
-            })
-            continue
-        except Exception as e:
-            print(f"Error loading consolidation for {folder_name}: {e}")
-            writer.writerow({
-                "folder": folder_name,
-                "text": "",
-                "lat": "",
-                "lon": "",
-                "formatted_address": "",
-                "types": "",
-                "status": f"error_loading: {e}",
+                "status": status_msg,
                 "selected": False
             })
             continue
 
-        if not consolidation_text or not consolidation_text.strip():
-            writer.writerow({
-                "folder": folder_name,
-                "text": "",
-                "lat": "",
-                "lon": "",
-                "formatted_address": "",
-                "types": "",
-                "status": "empty_consolidation",
-                "selected": False
-            })
-            continue
+        # Preprocess text before geocoding
+        text_to_geocode = preprocess_text(text_to_geocode)
 
-        print("Geocoding text:", consolidation_text)
+        print("Geocoding text:", text_to_geocode)
 
-        res = geocode_token(consolidation_text, cache, api_key)
+        res = geocode_token(text_to_geocode, cache, api_key)
 
         print("Geocode result status:", res.get("status"))
         print("Number of results:", len(res.get("results", [])) if res else 0)
@@ -185,7 +285,7 @@ with shelve.open(str(CACHE_DB)) as cache, open(OUT_TSV, "w", newline="", encodin
         if not res:
             writer.writerow({
                 "folder": folder_name,
-                "text": consolidation_text,
+                "text": text_to_geocode,
                 "lat": "",
                 "lon": "",
                 "formatted_address": "",
@@ -200,7 +300,7 @@ with shelve.open(str(CACHE_DB)) as cache, open(OUT_TSV, "w", newline="", encodin
             first = res["results"][0]
             writer.writerow({
                 "folder": folder_name,
-                "text": consolidation_text,
+                "text": text_to_geocode,
                 "lat": first.get("lat"),
                 "lon": first.get("lon"),
                 "formatted_address": first.get("formatted_address"),
@@ -211,7 +311,7 @@ with shelve.open(str(CACHE_DB)) as cache, open(OUT_TSV, "w", newline="", encodin
         else:
             writer.writerow({
                 "folder": folder_name,
-                "text": consolidation_text,
+                "text": text_to_geocode,
                 "lat": "",
                 "lon": "",
                 "formatted_address": "",
