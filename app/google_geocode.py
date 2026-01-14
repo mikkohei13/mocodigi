@@ -51,7 +51,6 @@ folder_names = [
 run_version = "16"
 branch_version = "" # Set to empty string to use just run_version, or e.g. "b" for "15b"
 
-# Data source option: "consolidation" or "gt"
 DATA_SOURCE = "gt"  # Options: "consolidation" or "gt"
 
 OUTPUT_DIR = Path("output")
