@@ -1,5 +1,11 @@
 from image_utils import get_image_files_from_folder
-from cache_utils import load_cache
+from cache_utils import (
+    load_cache,
+    alignment_cache_exists,
+    load_alignment_cache,
+    save_alignment_cache
+)
+from pathlib import Path
 import re
 
 
@@ -261,11 +267,17 @@ folder_names = [
 ]
 
 run_version = "16"
+branch_version = ""  # Set to empty string to use just run_version, or e.g. "b" for "15b"
+
+# Combine run_version and branch_version for alignment cache
+alignment_version = f"{run_version}{branch_version}"
 
 # Minimum overlap length for merging fragments
 min_overlap = 3
 
 print(f"Run version: {run_version}")
+print(f"Branch version: {branch_version}")
+print(f"Alignment version: {alignment_version}")
 print(f"Min overlap: {min_overlap}")
 print(f"Processing {len(folder_names)} specimen(s)")
 print("=" * 50)
@@ -288,29 +300,63 @@ for folder_name in folder_names:
         print(f"No image files found in '{folder_name}', skipping...")
         continue
     
-    # Collect all transcripts from images in this folder
-    all_transcripts = []
-    for image_file in image_files:
-        try:
-            cache_data = load_cache(image_file, run_version)
-            transcript = cache_data["data"]["transcript"]
+    # Get base folder for cache file location
+    base_folder = Path(folder_name)
+    
+    # Check if alignment cache exists
+    if alignment_cache_exists(base_folder, alignment_version):
+        print("Alignment cache found, loading from cache...")
+        cache_data = load_alignment_cache(base_folder, alignment_version)
+        alignment_text = cache_data["data"]["alignment"]
+        print("(Loaded from cache)")
+    else:
+        print("No alignment cache found, generating alignment...")
+        
+        # Collect all transcripts from images in this folder
+        all_transcripts = []
+        for image_file in image_files:
+            try:
+                cache_data = load_cache(image_file, run_version)
+                transcript = cache_data["data"]["transcript"]
 
-            all_transcripts.append(transcript)
-            print(f"Loaded transcript from {image_file.name}")
-        except FileNotFoundError:
-            print(f"Warning: No transcript cache found for {image_file.name}, skipping...")
+                all_transcripts.append(transcript)
+                print(f"Loaded transcript from {image_file.name}")
+            except FileNotFoundError:
+                print(f"Warning: No transcript cache found for {image_file.name}, skipping...")
+                continue
+        
+        if not all_transcripts:
+            print(f"No transcripts found to align for '{folder_name}', skipping...")
             continue
-    
-    if not all_transcripts:
-        print(f"No transcripts found to align for '{folder_name}', skipping...")
-        continue
-    
-    print(f"Collected {len(all_transcripts)} transcript(s)")
-    
-    # Align transcripts using OLC algorithm
-    print("Aligning transcripts using Overlap-Layout-Consensus...")
-    alignment_text = align_transcripts(all_transcripts, min_overlap)
-    
+        
+        print(f"Collected {len(all_transcripts)} transcript(s)")
+        
+        # Align transcripts using OLC algorithm
+        print("Aligning transcripts using Overlap-Layout-Consensus...")
+        alignment_text = align_transcripts(all_transcripts, min_overlap)
+        
+        # Prepare concatenated transcripts for cache (similar to consolidate.py format)
+        transcripts_content = ""
+        transcript_count = 0
+        for transcript in all_transcripts:
+            transcript_count += 1
+            transcripts_content += f"## Transcript {transcript_count}:\n"
+            transcripts_content += f"\n{transcript}\n"
+            transcripts_content += "\n"
+        
+        # Save to alignment cache
+        cache_path = save_alignment_cache(
+            base_folder=base_folder,
+            raw_alignment=alignment_text,
+            alignment=alignment_text,
+            concatenated_transcripts=transcripts_content,
+            model_name="OLC-alignment",
+            prompt=f"Overlap-Layout-Consensus alignment with min_overlap={min_overlap}",
+            temperature=0.0,
+            run_version=alignment_version
+        )
+        print(f"Saved to alignment cache: {cache_path}")
+
     # Print the alignment result for this specimen
     print("\n" + "-" * 50)
     print(f"Alignment Result for {folder_name}:")
