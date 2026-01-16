@@ -1,14 +1,12 @@
 # Script that verifies transcript data against ground truth
 
-from cache_utils import load_consolidation_cache, load_alignment_cache
+from cache_utils import load_consolidation_cache
 from pathlib import Path
 from collections import Counter
 import unicodedata
 
 
 # Configuration
-DATA_TYPE = "alignment"  # consolidation or alignment
-
 # List of folder names to process. Each contain images from a single specimen.
 folder_names = [
     "images/A01 - Copy",
@@ -496,23 +494,19 @@ def calculate_wer_cer_two_level(gt_text: str, consolidation_text: str) -> tuple[
     return wer, cer, details
 
 
-# Validate DATA_TYPE
-if DATA_TYPE not in ("consolidation", "alignment"):
-    raise ValueError(f"DATA_TYPE must be 'consolidation' or 'alignment', got '{DATA_TYPE}'")
-
-# Combine run_version and branch_version for cache version
+# Combine run_version and branch_version for consolidation cache
 if branch_version:
-    cache_version = f"{run_version}{branch_version}"
+    consolidation_version = f"{run_version}{branch_version}"
 else:
-    cache_version = run_version
+    consolidation_version = run_version
 
 # Process each folder
 print("=" * 50)
-print(f"Comparing {DATA_TYPE} to ground truth")
+print("Comparing consolidation to ground truth")
 print(f"Run version: {run_version}")
 if branch_version:
     print(f"Branch version: {branch_version}")
-print(f"Cache version: {cache_version}")
+print(f"Consolidation version: {consolidation_version}")
 print("=" * 50)
 
 match_percentages = []
@@ -534,29 +528,25 @@ for folder_name in folder_names:
     with open(gt_path, 'r', encoding='utf-8') as f:
         gt_text = f.read()
     
-    # Load consolidation or alignment based on DATA_TYPE
+    # Load consolidation
     try:
-        if DATA_TYPE == "consolidation":
-            cache_data = load_consolidation_cache(base_folder, cache_version)
-            result_text = cache_data["data"]["consolidation"]
-        else:  # DATA_TYPE == "alignment"
-            cache_data = load_alignment_cache(base_folder, cache_version)
-            result_text = cache_data["data"]["alignment"]
+        cache_data = load_consolidation_cache(base_folder, consolidation_version)
+        consolidation_text = cache_data["data"]["consolidation"]
     except FileNotFoundError:
-        print(f"Warning: {DATA_TYPE.capitalize()} cache not found for run_{cache_version}, skipping...")
+        print(f"Warning: Consolidation cache not found for run_{consolidation_version}, skipping...")
         continue
     
     # Print texts
     print("Ground truth:")
     print(gt_text)
-    print(f"\n{DATA_TYPE.capitalize()}:")
-    print(result_text)
+    print("\nConsolidation:")
+    print(consolidation_text)
     
     # Compare (all characters)
-    match_percentage, mismatch_count = compare_texts(gt_text, result_text, alphanumeric_only=False)
+    match_percentage, mismatch_count = compare_texts(gt_text, consolidation_text, alphanumeric_only=False)
     
     # Compare (alphanumeric only)
-    alphanumeric_match_percentage, alphanumeric_mismatch_count = compare_texts(gt_text, result_text, alphanumeric_only=True)
+    alphanumeric_match_percentage, alphanumeric_mismatch_count = compare_texts(gt_text, consolidation_text, alphanumeric_only=True)
     
     print(f"\nMatch percentage (all characters): {match_percentage:.2f}%")
     print(f"Mismatch character count (all characters): {mismatch_count}")
@@ -564,12 +554,12 @@ for folder_name in folder_names:
     print(f"Mismatch character count (alphanumeric only): {alphanumeric_mismatch_count}")
     
     # Calculate WER and CER using two-level span matching + normalization
-    wer, cer, details = calculate_wer_cer_two_level(gt_text, result_text)
+    wer, cer, details = calculate_wer_cer_two_level(gt_text, consolidation_text)
     print(f"\nWord Error Rate (WER, span-matched, normalized): {wer:.2f}%")
     print(f"Character Error Rate (CER, span-matched, normalized): {cer:.2f}%")
     print(f"Matched spans: {details['matched_spans']}")
     print(f"Unmatched GT lines: {details['unmatched_gt_lines']}")
-    print(f"Unmatched {DATA_TYPE} lines: {details['unmatched_cons_lines']}")
+    print(f"Unmatched consolidation lines: {details['unmatched_cons_lines']}")
     
     match_percentages.append(match_percentage)
     alphanumeric_match_percentages.append(alphanumeric_match_percentage)
