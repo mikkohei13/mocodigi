@@ -11,6 +11,7 @@ See PRINCIPLES.md
 - `docker-compose.yml` - Docker services
 - `app/digitize.py` - Transcribes labels from specimen images using LLM
 - `app/consolidate.py` - Consolidates multiple transcriptions from different angles into a single refined label text
+- `app/google_geocode.py` - Geocodes text into coordinates using Google Maps API
 - `app/*_utils.py` - Utility modules (image handling, Gemini API, caching, database)
 - `app/database/` - Database schema and initialization scripts
 - `app/images/` - Specimen image folders (one per specimen)
