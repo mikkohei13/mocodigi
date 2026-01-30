@@ -9,9 +9,12 @@ See PRINCIPLES.md
 ## File structure
 
 - Digitization pipeline:
+   - `app/fetch_specimens.py` - Fetches specimen data and images from FinBIF API
    - `app/digitize.py` - Transcribes labels from specimen images using LLM, caching the results to JSON files
-   - `app/consolidate.py` - Consolidates multiple transcriptions from different angles into a single refined label text, caching the results to JSON files
+   - `app/consolidate.py` - Using LLM, consolidates multiple transcriptions from different angles into a single refined label text, caching the results to JSON files
+   - `app/align.py` - Using alignment algorithms, aligns multiple transcriptions from different angles into a single refined label text, caching the results to JSON files
    - `app/test.py` - Tests the consolidation and alignment data against ground truth
+   - `app/compare.py` - Compares the transcriptions to existing data and builds an comparisonHTML table
    - `app/images/` - Specimen image folders (one folder and multiple imagesper specimen)
    - `app/google_geocode.py` - Geocodes text into coordinates using Google Maps API, caching the results to JSON files
 
