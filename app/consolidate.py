@@ -21,8 +21,8 @@ folder_names = [
     "images/A02 test"
 ]
 
-model_name = "gemini-3-pro-preview"
 model_name = "gemini-2.5-flash"
+model_name = "gemini-3-pro-preview"
 
 temperature = 0.0
 run_version = "18"

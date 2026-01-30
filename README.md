@@ -13,6 +13,7 @@ See PRINCIPLES.md
    - `app/digitize.py` - Transcribes labels from specimen images using LLM, caching the results to JSON files
    - `app/consolidate.py` - Using LLM, consolidates multiple transcriptions from different angles into a single refined label text, caching the results to JSON files
    - `app/align.py` - Using alignment algorithms, aligns multiple transcriptions from different angles into a single refined label text, caching the results to JSON files
+   - `app/darwin_core.py` - Converts the digitized/consolidated label text to Darwin Core (DwC) format using LLM, caching the results to JSON files
    - `app/test.py` - Tests the consolidation and alignment data against ground truth
    - `app/compare.py` - Compares the transcriptions to existing data and builds an comparisonHTML table
    - `app/images/` - Specimen image folders (one folder and multiple imagesper specimen)
