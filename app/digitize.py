@@ -1,4 +1,4 @@
-from image_utils import collect_image_files_from_folders, load_image_as_part
+from image_utils import collect_image_files_from_folders, load_image_as_part, get_subfolders
 from gemini_utils import get_gemini_client, generate_transcription
 from cache_utils import cache_exists, load_cache, save_cache
 import hashlib
@@ -11,12 +11,11 @@ def post_process_transcript(text_content: str) -> str:
 # Configuration
 # List of folder names to process
 folder_names = [
-    "images_lajifi/http___id.luomus.fi_C.372",
-    "images_lajifi/http___id.luomus.fi_C.5571",
-    "images_lajifi/http___id.luomus.fi_C.6733",
-
-    "images_lajifi/http___id.luomus.fi_C.103015",
+    "images_lajifi/http___id.luomus.fi_C.512411",
 ]
+
+# Or ever subfolder in a folder
+#folder_names = get_subfolders("images_lajifi")
 
 model_name = "gemini-2.5-flash"
 model_name = "gemini-3-pro-preview"

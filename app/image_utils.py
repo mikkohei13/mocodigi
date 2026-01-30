@@ -16,6 +16,19 @@ MIME_TYPE_MAP = {
     '.webp': 'image/webp'
 }
 
+def get_subfolders(folder_path: str) -> list[Path]:
+    """
+    Get all subfolders from a folder.
+    
+    Args:
+        folder_path: Path to the folder
+        
+    Returns:
+        List of Path objects for subfolders
+    """
+    folder = Path(folder_path)
+    return [f for f in folder.iterdir() if f.is_dir()]
+
 
 def get_image_files_from_folder(folder_path: str) -> list[Path]:
     """
