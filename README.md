@@ -8,13 +8,21 @@ See PRINCIPLES.md
 
 ## File structure
 
-- `docker-compose.yml` - Docker services
-- `app/digitize.py` - Transcribes labels from specimen images using LLM
-- `app/consolidate.py` - Consolidates multiple transcriptions from different angles into a single refined label text
-- `app/google_geocode.py` - Geocodes text into coordinates using Google Maps API
-- `app/*_utils.py` - Utility modules (image handling, Gemini API, caching, database)
-- `app/database/` - Database schema and initialization scripts
-- `app/images/` - Specimen image folders (one per specimen)
+- Digitization pipeline:
+   - `app/digitize.py` - Transcribes labels from specimen images using LLM, caching the results to JSON files
+   - `app/consolidate.py` - Consolidates multiple transcriptions from different angles into a single refined label text, caching the results to JSON files
+   - `app/test.py` - Tests the consolidation and alignment data against ground truth
+   - `app/images/` - Specimen image folders (one folder and multiple imagesper specimen)
+   - `app/google_geocode.py` - Geocodes text into coordinates using Google Maps API, caching the results to JSON files
+
+- Utilities:
+   - `app/cache_utils.py` - Utilities for caching data from LLM calls to JSON files
+   - `app/image_utils.py` - Utilities for reading image files and converting them for use in Gemini API calls
+   - `app/gemini_utils.py` - Utilities for calling the Gemini API
+
+- RAG:
+   - `app/rag_utils.py` - Utilities for retrieval-augmented generation (RAG)
+   - `app/database/` - Locality name database schema and initialization scripts for RAG
 
 ## Setup
 

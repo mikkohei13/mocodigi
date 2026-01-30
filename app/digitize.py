@@ -11,30 +11,15 @@ def post_process_transcript(text_content: str) -> str:
 # Configuration
 # List of folder names to process
 folder_names = [
-    "images/A01 - Copy",
-    "images/B01 - Copy",
-    "images/B05 - Copy",
-    "images/C02 - Copy",
-    "images/C05 - Copy",
-    "images/C13 - Copy",
-    "images/C14 - Copy",
-    "images/D07 - Copy",
-    "images/D08 - Copy",
-    "images/D11 - Copy",
-    "images/D12 - Copy",
-    "images/D14 - Copy",
-    "images/D16 - Copy",
-    "images/D17 - Copy",
-    "images/D22 - Copy",
-    "images/D23 - Copy",
+    "images/A02 test"
 ]
 
 model_name = "gemini-2.5-flash"
 model_name = "gemini-3-pro-preview"
 
 temperature = 0.0
-run_version = "16"
-
+run_version = "18"
+max_chars = 1000
 
 system_prompt = """
 Your task is to accurately transcribe handwritten and typewritten biological specimen labels based on a photograph, minimizing the CER and WER. Work character by character, word by word, line by line, label by label, transcribing the text exactly as it appears on the labels. To maintain the authenticity of the historical text, retain spelling errors, grammar, syntax, capitalization, and punctuation. Transcribe all the text on the labels. They may be in any language using Latin alphabet with diacritics, and may also contain numbers, dates, codes and abbreviations. In your final response write Transcription: followed only by your transcription. Do not include any other text, conversational filler, or descriptions of the labels in your response.
@@ -75,7 +60,8 @@ for image_file in all_image_files:
                 image_part=image_part,
                 model_name=model_name,
                 system_prompt=system_prompt,
-                temperature=temperature
+                temperature=temperature,
+                max_chars=max_chars
             )
 
             processed_response_text = post_process_transcript(response_text)

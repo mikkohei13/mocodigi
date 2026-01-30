@@ -18,29 +18,14 @@ def post_process_consolidation(text_content: str) -> str:
 # Configuration
 # List of folder names to process
 folder_names = [
-    "images/A01 - Copy",
-    "images/B01 - Copy",
-    "images/B05 - Copy",
-    "images/C02 - Copy",
-    "images/C05 - Copy",
-    "images/C13 - Copy",
-    "images/C14 - Copy",
-    "images/D07 - Copy",
-    "images/D08 - Copy",
-    "images/D11 - Copy",
-    "images/D12 - Copy",
-    "images/D14 - Copy",
-    "images/D16 - Copy",
-    "images/D17 - Copy",
-    "images/D22 - Copy",
-    "images/D23 - Copy",
+    "images/A02 test"
 ]
 
 model_name = "gemini-3-pro-preview"
 model_name = "gemini-2.5-flash"
 
 temperature = 0.0
-run_version = "16"
+run_version = "18"
 branch_version = "" # Set to empty string to use just run_version, or e.g. "b" for "15b"
 
 # Combine run_version and branch_version for consolidation cache

@@ -1,33 +1,23 @@
 # Script that verifies transcript data against ground truth
 
-from cache_utils import load_consolidation_cache
+from cache_utils import load_consolidation_cache, load_alignment_cache
 from pathlib import Path
 from collections import Counter
 import unicodedata
 
 
 # Configuration
+# Set to "consolidation" or "alignment" to test the corresponding data type
+DATATYPE = "consolidation"
+
 # List of folder names to process. Each contain images from a single specimen.
 folder_names = [
-    "images/A01 - Copy",
-    "images/B01 - Copy",
-    "images/B05 - Copy",
-    "images/C02 - Copy",
-    "images/C05 - Copy",
-    "images/C13 - Copy",
-    "images/C14 - Copy",
-    "images/D07 - Copy",
-    "images/D08 - Copy",
-    "images/D11 - Copy",
-    "images/D12 - Copy",
-    "images/D14 - Copy",
-    "images/D16 - Copy",
-    "images/D17 - Copy",
-    "images/D22 - Copy",
-    "images/D23 - Copy",
+    "images/D01",
+    "images/D02",
+    "images/D03",
 ]
 
-run_version = "16"
+run_version = "17"
 branch_version = "" # Set to empty string to use just run_version, or e.g. "b" for "15b"
 
 
@@ -494,19 +484,23 @@ def calculate_wer_cer_two_level(gt_text: str, consolidation_text: str) -> tuple[
     return wer, cer, details
 
 
-# Combine run_version and branch_version for consolidation cache
+# Validate DATATYPE
+if DATATYPE not in ("consolidation", "alignment"):
+    raise ValueError(f"DATATYPE must be 'consolidation' or 'alignment', got '{DATATYPE}'")
+
+# Combine run_version and branch_version for cache
 if branch_version:
-    consolidation_version = f"{run_version}{branch_version}"
+    cache_version = f"{run_version}{branch_version}"
 else:
-    consolidation_version = run_version
+    cache_version = run_version
 
 # Process each folder
 print("=" * 50)
-print("Comparing consolidation to ground truth")
+print(f"Comparing {DATATYPE} to ground truth")
 print(f"Run version: {run_version}")
 if branch_version:
     print(f"Branch version: {branch_version}")
-print(f"Consolidation version: {consolidation_version}")
+print(f"Cache version: {cache_version}")
 print("=" * 50)
 
 match_percentages = []
@@ -528,25 +522,29 @@ for folder_name in folder_names:
     with open(gt_path, 'r', encoding='utf-8') as f:
         gt_text = f.read()
     
-    # Load consolidation
+    # Load data based on DATATYPE
     try:
-        cache_data = load_consolidation_cache(base_folder, consolidation_version)
-        consolidation_text = cache_data["data"]["consolidation"]
+        if DATATYPE == "consolidation":
+            cache_data = load_consolidation_cache(base_folder, cache_version)
+            data_text = cache_data["data"]["consolidation"]
+        else:  # DATATYPE == "alignment"
+            cache_data = load_alignment_cache(base_folder, cache_version)
+            data_text = cache_data["data"]["alignment"]
     except FileNotFoundError:
-        print(f"Warning: Consolidation cache not found for run_{consolidation_version}, skipping...")
+        print(f"Warning: {DATATYPE.capitalize()} cache not found for run_{cache_version}, skipping...")
         continue
     
     # Print texts
     print("Ground truth:")
     print(gt_text)
-    print("\nConsolidation:")
-    print(consolidation_text)
+    print(f"\n{DATATYPE.capitalize()}:")
+    print(data_text)
     
     # Compare (all characters)
-    match_percentage, mismatch_count = compare_texts(gt_text, consolidation_text, alphanumeric_only=False)
+    match_percentage, mismatch_count = compare_texts(gt_text, data_text, alphanumeric_only=False)
     
     # Compare (alphanumeric only)
-    alphanumeric_match_percentage, alphanumeric_mismatch_count = compare_texts(gt_text, consolidation_text, alphanumeric_only=True)
+    alphanumeric_match_percentage, alphanumeric_mismatch_count = compare_texts(gt_text, data_text, alphanumeric_only=True)
     
     print(f"\nMatch percentage (all characters): {match_percentage:.2f}%")
     print(f"Mismatch character count (all characters): {mismatch_count}")
@@ -554,12 +552,12 @@ for folder_name in folder_names:
     print(f"Mismatch character count (alphanumeric only): {alphanumeric_mismatch_count}")
     
     # Calculate WER and CER using two-level span matching + normalization
-    wer, cer, details = calculate_wer_cer_two_level(gt_text, consolidation_text)
+    wer, cer, details = calculate_wer_cer_two_level(gt_text, data_text)
     print(f"\nWord Error Rate (WER, span-matched, normalized): {wer:.2f}%")
     print(f"Character Error Rate (CER, span-matched, normalized): {cer:.2f}%")
     print(f"Matched spans: {details['matched_spans']}")
     print(f"Unmatched GT lines: {details['unmatched_gt_lines']}")
-    print(f"Unmatched consolidation lines: {details['unmatched_cons_lines']}")
+    print(f"Unmatched {DATATYPE} lines: {details['unmatched_cons_lines']}")
     
     match_percentages.append(match_percentage)
     alphanumeric_match_percentages.append(alphanumeric_match_percentage)
