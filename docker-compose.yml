@@ -1,4 +1,4 @@
-version: '3'
+
 services:
   python-scripts:
     build: .
@@ -9,8 +9,10 @@ services:
       - DB_USER=${POSTGRES_USER}
       - DB_PASSWORD=${POSTGRES_PASSWORD}
       - DB_NAME=${POSTGRES_DB}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_DEVELOPER_API_KEY=${GEMINI_DEVELOPER_API_KEY}
+      - GEMINI_VERTEX_API_KEY=${GEMINI_VERTEX_API_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - FINBIF_ACCESS_TOKEN=${FINBIF_ACCESS_TOKEN}
     command: tail -f /dev/null
     stdin_open: true
     tty: true

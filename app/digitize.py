@@ -11,22 +11,29 @@ def post_process_transcript(text_content: str) -> str:
 # Configuration
 # List of folder names to process
 folder_names = [
-    "images/A02 test"
+    "images_lajifi/http___id.luomus.fi_C.372",
+    "images_lajifi/http___id.luomus.fi_C.5571",
+    "images_lajifi/http___id.luomus.fi_C.6733",
+
+    "images_lajifi/http___id.luomus.fi_C.103015",
 ]
 
 model_name = "gemini-2.5-flash"
 model_name = "gemini-3-pro-preview"
 
 temperature = 0.0
-run_version = "18"
+run_version = "h1"
 max_chars = 1000
 
+# True = Vertex AI Express Mode (API key from Google Cloud). False = Gemini Developer API (aistudio.google.com).
+USE_VERTEX_AI = True
+
 system_prompt = """
-Your task is to accurately transcribe handwritten and typewritten biological specimen labels based on a photograph, minimizing the CER and WER. Work character by character, word by word, line by line, label by label, transcribing the text exactly as it appears on the labels. To maintain the authenticity of the historical text, retain spelling errors, grammar, syntax, capitalization, and punctuation. Transcribe all the text on the labels. They may be in any language using Latin alphabet with diacritics, and may also contain numbers, dates, codes and abbreviations. In your final response write Transcription: followed only by your transcription. Do not include any other text, conversational filler, or descriptions of the labels in your response.
+Your task is to accurately transcribe handwritten and typewritten biological specimen labels based on a photograph, minimizing CER and WER. Work character by character, word by word, line by line, label by label, transcribing the text exactly as it appears on the labels. To maintain the authenticity of the historical text, retain spelling errors, grammar, syntax, capitalization, and punctuation. Transcribe all the text on the labels. They may be in any language using Latin alphabet with diacritics, and may also contain numbers, dates, codes and abbreviations. In your final response write Transcription: followed only by your transcription. Do not include any other text, conversational filler, or descriptions of the labels in your response.
 """
 
 # Initialize the Gemini client
-client = get_gemini_client()
+client = get_gemini_client(use_vertex_ai=USE_VERTEX_AI)
 
 # Collect all image files from all folders
 all_image_files = collect_image_files_from_folders(folder_names)

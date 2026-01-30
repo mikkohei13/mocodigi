@@ -3,6 +3,9 @@
 **/secrets/**
 **/data/**
 **/output/**
+**/images_lajifi/**
+
+.env
 
 notes/*
 

@@ -33,6 +33,9 @@ consolidation_version = f"{run_version}{branch_version}"
 
 debug = False
 
+# True = Vertex AI Express Mode (GEMINI_VERTEX_API_KEY). False = Gemini Developer API (GEMINI_DEVELOPER_API_KEY).
+USE_VERTEX_AI = True
+
 system_prompt = """
 Your task is to consolidate and refine multiple raw transcripts into a single, coherent set of label text for one biological specimen. 
 
@@ -52,7 +55,7 @@ In your final response, write "Consolidation:" followed only by your consolidate
 """
 
 # Initialize the Gemini client
-client = get_gemini_client()
+client = get_gemini_client(use_vertex_ai=USE_VERTEX_AI)
 
 #print(f"System prompt: {system_prompt}")
 print(f"Temperature: {temperature}")

@@ -4,25 +4,17 @@ import google.genai as genai
 from google.genai import types
 
 
-def get_gemini_client(api_key: str = None) -> genai.Client:
+def get_gemini_client(use_vertex_ai: bool = False) -> genai.Client:
     """
-    Initialize and return a Gemini client.
-    
-    Args:
-        api_key: API key for Gemini. If None, reads from GEMINI_API_KEY env var.
-        
-    Returns:
-        Initialized Gemini client
-        
-    Raises:
-        ValueError: If API key is not set
+    Initialize and return a Gemini client. API key is read from .env:
+    GEMINI_VERTEX_API_KEY when use_vertex_ai is True, GEMINI_DEVELOPER_API_KEY otherwise.
     """
-    if api_key is None:
-        api_key = os.getenv("GEMINI_API_KEY")
-    
+    key_var = "GEMINI_VERTEX_API_KEY" if use_vertex_ai else "GEMINI_DEVELOPER_API_KEY"
+    api_key = os.getenv(key_var)
     if not api_key:
-        raise ValueError("API key is not set. Please set GEMINI_API_KEY environment variable.")
-    
+        raise ValueError(f"API key is not set. Please set {key_var} in .env.")
+    if use_vertex_ai:
+        return genai.Client(vertexai=True, api_key=api_key)
     return genai.Client(api_key=api_key)
 
 
