@@ -133,10 +133,13 @@ for folder_name in folder_names:
         rag_content = get_rag_content(folder_name, transcripts_content)
 
         # Combine all
-        content = rag_content + "\n\n" + transcripts_content
+        all_content = rag_content + "\n\n" + transcripts_content
 
+        print("Submitting for consolidation:")
         print(system_prompt)
-        print(content)
+        print("--")
+        print(all_content)
+        print("-" * 50)
 
         # Debug mode: exit before submitting to Gemini
         if debug:
@@ -147,7 +150,7 @@ for folder_name in folder_names:
         print("Submitting to Gemini for consolidation...")
         consolidation_text = generate_consolidation(
             client=client,
-            text_content=transcripts_content,
+            text_content=transcripts_content, # TODO: test with all_content
             model_name=model_name,
             system_prompt=system_prompt,
             temperature=temperature

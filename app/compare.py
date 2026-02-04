@@ -40,6 +40,19 @@ def get_first_transcript(run_dir: Path) -> str | None:
         data = json.load(f)
     return (data.get("data") or {}).get("transcript")
 
+
+def get_darwin_core_data(run_dir: Path) -> dict | None:
+    """Read data field from darwin_core.json in run_dir. Return None if missing."""
+    dc_path = run_dir / "darwin_core.json"
+    if not dc_path.is_file():
+        return None
+    try:
+        with open(dc_path, encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("data")
+    except (json.JSONDecodeError, OSError):
+        return None
+
 def get_css() -> str:
     return """
     <style>
@@ -76,21 +89,30 @@ def main() -> None:
         if transcript is None:
             continue
 
+        darwin_core = get_darwin_core_data(run_dir)
+
         document_id = doc.get("document", {}).get("documentId", "")
         parts = extract_specimen_label_parts(doc)
-        rows.append((document_id, parts, transcript))
+        rows.append((document_id, parts, transcript, darwin_core))
 
     out_path = IMAGES_DIR / f"comparison_{datetime.now().strftime('%Y-%m-%dT%H-%M-%S')}.html"
     with open(out_path, "w", encoding="utf-8") as f:
         f.write("<!DOCTYPE html><html><head><meta charset=\"utf-8\">")
         f.write(get_css())
         f.write(f"</head><body><h1>{RUN_ID} with {len(rows)} rows</h1><table>\n")
-        f.write("<tr><th>Document ID</th><th>Specimen data</th><th>Transcript</th></tr>\n")
-        for document_id, parts, transcript in rows:
+        f.write("<tr><th>Document ID</th><th>Specimen data</th><th>Transcript</th><th>Darwin Core</th></tr>\n")
+        for document_id, parts, transcript, darwin_core in rows:
             col_id = f"<a href='{document_id}' target='_blank'>" + html.escape(document_id) + "</a>"
             col_specimen = "<br>\n".join(html.escape(p) if p else "&nbsp;" for p in parts)
             col_transcript = html.escape(transcript).replace("\n", "<br>\n")
-            f.write(f"<tr><td>{col_id}</td><td>{col_specimen}</td><td>{col_transcript}</td></tr>\n")
+            if darwin_core:
+                col_darwin_core = "<br>\n".join(
+                    f"<b>{html.escape(k)}:</b> {html.escape(str(v)) if v is not None else ''}"
+                    for k, v in darwin_core.items()
+                )
+            else:
+                col_darwin_core = "&nbsp;"
+            f.write(f"<tr><td>{col_id}</td><td>{col_specimen}</td><td>{col_transcript}</td><td>{col_darwin_core}</td></tr>\n")
         f.write("</table></body></html>\n")
 
     print(f"Wrote {len(rows)} rows to {out_path}")

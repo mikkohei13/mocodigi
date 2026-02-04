@@ -14,8 +14,8 @@ folder_names = [
     "images_lajifi/http___id.luomus.fi_C.512411",
 ]
 
-# Or ever subfolder in a folder
-#folder_names = get_subfolders("images_lajifi")
+# Or every subfolder in a folder
+folder_names = get_subfolders("images_lajifi")
 
 model_name = "gemini-2.5-flash"
 model_name = "gemini-3-pro-preview"
