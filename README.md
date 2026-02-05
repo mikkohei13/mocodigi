@@ -53,3 +53,13 @@ See PRINCIPLES.md
 3. Access database UI:
    - Adminer: http://localhost:8080
    - Server: `postgres`, Database: `mocodigi`, Username/Password from `.env`
+
+## Useful commands
+
+Print Darwin Core file contents:
+
+   find . -type f -name 'darwin_core.json' -exec cat {} +
+
+Rename Darwin Core files:
+
+   find . -type f -name 'darwin_core.json' -print0 | while IFS= read -r -d '' f; do   dir=${f%/darwin_core.json};   mv -- "$f" "$dir/darwin_core_v5_temp.json"; done
