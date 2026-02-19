@@ -15,13 +15,13 @@ folder_names = [
 ]
 
 # Or every subfolder in a folder
-folder_names = get_subfolders("images_lajifi")
+folder_names = get_subfolders("images")
 
 model_name = "gemini-2.5-flash"
 model_name = "gemini-3-pro-preview"
 
 temperature = 0.0
-run_version = "h1"
+run_version = "mac_1_auth-test"
 max_chars = 1000
 
 # True = Vertex AI Express Mode (API key from Google Cloud). False = Gemini Developer API (aistudio.google.com).

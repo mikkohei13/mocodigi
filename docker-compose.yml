@@ -5,40 +5,43 @@ services:
     user: "1000:1000"
     volumes:
       - ./app:/app
+      - ${HOME}/.config/gcloud-work:/credentials:ro
     environment:
-      - DB_HOST=postgres
-      - DB_USER=${POSTGRES_USER}
-      - DB_PASSWORD=${POSTGRES_PASSWORD}
-      - DB_NAME=${POSTGRES_DB}
+#      - DB_HOST=postgres
+#       - DB_USER=${POSTGRES_USER}
+#      - DB_PASSWORD=${POSTGRES_PASSWORD}
+#      - DB_NAME=${POSTGRES_DB}
       - GEMINI_DEVELOPER_API_KEY=${GEMINI_DEVELOPER_API_KEY}
-      - GEMINI_VERTEX_API_KEY=${GEMINI_VERTEX_API_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GOOGLE_APPLICATION_CREDENTIALS=/credentials/application_default_credentials.json
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION}
       - FINBIF_ACCESS_TOKEN=${FINBIF_ACCESS_TOKEN}
     command: tail -f /dev/null
     stdin_open: true
     tty: true
-    depends_on:
-      - postgres
+#    depends_on:
+#      - postgres
 
-  postgres:
-    image: postgres:16
-    restart: always
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+#  postgres:
+#    image: postgres:16
+#    restart: always
+#    environment:
+#      - POSTGRES_USER=${POSTGRES_USER}
+#      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+#      - POSTGRES_DB=${POSTGRES_DB}
+#    ports:
+#      - "5432:5432"
+#    volumes:
+#      - postgres_data:/var/lib/postgresql/data
 
-  adminer:
-    image: adminer:latest
-    restart: always
-    ports:
-      - "8080:8080"
-    depends_on:
-      - postgres
+#  adminer:
+#    image: adminer:latest
+#    restart: always
+#    ports:
+#      - "8080:8080"
+#    depends_on:
+#      - postgres
 
-volumes:
-  postgres_data:
+#volumes:
+#  postgres_data:

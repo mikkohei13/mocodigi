@@ -14,13 +14,14 @@ from cache_utils import (
 from comparison_utils import values_equal
 
 # Configuration (hardcoded)
-RUN_VERSION = "h1"
+RUN_VERSION = "mac_1"
+
 folder_names = [
     "images_lajifi/http___id.luomus.fi_C.512411",
 ]
 
 # Or every subfolder in a folder
-folder_names = get_subfolders("images_lajifi")
+folder_names = get_subfolders("images")
 
 model_name = "gemini-2.5-flash"
 model_name = "gemini-3-pro-preview"

@@ -1,4 +1,4 @@
-from image_utils import get_image_files_from_folder
+from image_utils import get_image_files_from_folder, get_subfolders
 from gemini_utils import get_gemini_client, generate_consolidation
 from cache_utils import (
     load_cache,
@@ -21,11 +21,14 @@ folder_names = [
     "images/A02 test"
 ]
 
+# Or every subfolder in a folder
+folder_names = get_subfolders("images")
+
 model_name = "gemini-2.5-flash"
 model_name = "gemini-3-pro-preview"
 
 temperature = 0.0
-run_version = "18"
+run_version = "mac_1"
 branch_version = "" # Set to empty string to use just run_version, or e.g. "b" for "15b"
 
 # Combine run_version and branch_version for consolidation cache

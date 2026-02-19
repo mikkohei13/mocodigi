@@ -6,15 +6,25 @@ from google.genai import types
 
 def get_gemini_client(use_vertex_ai: bool = False) -> genai.Client:
     """
-    Initialize and return a Gemini client. API key is read from .env:
-    GEMINI_VERTEX_API_KEY when use_vertex_ai is True, GEMINI_DEVELOPER_API_KEY otherwise.
+    Initialize and return a Gemini client.
+
+    When use_vertex_ai is True, uses Application Default Credentials (ADC) with
+    GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION env vars.
+    Otherwise uses GEMINI_DEVELOPER_API_KEY for the Gemini Developer API.
     """
-    key_var = "GEMINI_VERTEX_API_KEY" if use_vertex_ai else "GEMINI_DEVELOPER_API_KEY"
-    api_key = os.getenv(key_var)
-    if not api_key:
-        raise ValueError(f"API key is not set. Please set {key_var} in .env.")
     if use_vertex_ai:
-        return genai.Client(vertexai=True, api_key=api_key)
+        project = os.getenv("GOOGLE_CLOUD_PROJECT")
+        location = os.getenv("GOOGLE_CLOUD_LOCATION", "europe-west1")
+        if not project:
+            raise ValueError(
+                "GOOGLE_CLOUD_PROJECT is not set. "
+                "Please set it in .env and ensure GOOGLE_APPLICATION_CREDENTIALS points to your ADC JSON."
+            )
+        return genai.Client(vertexai=True, project=project, location=location)
+
+    api_key = os.getenv("GEMINI_DEVELOPER_API_KEY")
+    if not api_key:
+        raise ValueError("API key is not set. Please set GEMINI_DEVELOPER_API_KEY in .env.")
     return genai.Client(api_key=api_key)
 
 

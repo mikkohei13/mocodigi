@@ -33,24 +33,27 @@ See PRINCIPLES.md
 ### Prerequisites
 
 - Docker and Docker Compose
-- Gemini API key
+- gcloud authentication configured
+
+Note: when using gcloud, refer to the config as follows:
+
+```bash
+CLOUDSDK_CONFIG=~/.config/gcloud-work gcloud auth application-default login
+```
 
 ### Quick start
 
-1. Create `.env` file with:
-   ```
-   POSTGRES_USER=your_user
-   POSTGRES_PASSWORD=your_password
-   POSTGRES_DB=mocodigi
-   GEMINI_API_KEY=your_api_key
+1. Create `.env` file, see `.env.example` for reference.
    ```
 
-2. Start services:
+2. Place images in `app/images/` folder
+
+3. Start services:
    ```bash
    docker-compose up --build
    ```
 
-3. Access database UI:
+4. Access database UI, if you have it installed:
    - Adminer: http://localhost:8080
    - Server: `postgres`, Database: `mocodigi`, Username/Password from `.env`
 
@@ -58,8 +61,11 @@ See PRINCIPLES.md
 
 Print Darwin Core file contents:
 
+   ```bash
    find . -type f -name 'darwin_core.json' -exec cat {} +
-
+   ```
 Rename Darwin Core files:
 
+   ```bash
    find . -type f -name 'darwin_core.json' -print0 | while IFS= read -r -d '' f; do   dir=${f%/darwin_core.json};   mv -- "$f" "$dir/darwin_core_v5_temp.json"; done
+   ```
