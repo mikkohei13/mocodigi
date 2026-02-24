@@ -23,6 +23,7 @@ folder_names = [
 # Or every subfolder in a folder
 folder_names = get_subfolders("images")
 
+MODEL_LOCATION = "cloud" # cloud or local
 model_name = "gemini-2.5-flash"
 model_name = "gemini-3-pro-preview"
 
@@ -219,7 +220,12 @@ def main() -> None:
             print("No consolidation.json or *_transcript.json found in run_h1, skipping...")
             continue
 
-        out_path = run_dir / "darwin_core.json"
+        if MODEL_LOCATION == "cloud":
+            out_path = run_dir / "darwin_core.json"
+        else:
+            out_path = run_dir / "darwin_core_local.json"
+        
+
         if out_path.exists():
             print(f"Output file already exists: {out_path}, skipping...")
             continue

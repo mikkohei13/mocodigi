@@ -35,7 +35,7 @@ See PRINCIPLES.md
 - Docker and Docker Compose
 - gcloud authentication configured
 
-Note: when using gcloud, refer to the config as follows:
+Note: when using gcloud, refer to the Application Default Credentials (ADC) config as follows:
 
 ```bash
 CLOUDSDK_CONFIG=~/.config/gcloud-work gcloud auth application-default login
