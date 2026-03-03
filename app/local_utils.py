@@ -6,35 +6,117 @@ import urllib.request
 
 BASE_URL = os.getenv("LM_STUDIO_BASE_URL", "http://host.docker.internal:1234/v1")
 MODEL = os.getenv("LM_STUDIO_MODEL", "local-model")
-PROMPT = "Write a short story about a cat, max 3 sentences."
 
 
-def main() -> None:
+def get_local_client(base_url: str | None = None) -> str:
+    """Return local OpenAI-compatible API base URL."""
+    return base_url or BASE_URL
+
+
+def _extract_response_text(data: dict) -> str:
+    """Extract assistant text from OpenAI-compatible chat completion payload."""
+    choices = data.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return ""
+
+    message = choices[0].get("message", {})
+    content = message.get("content", "")
+
+    if isinstance(content, str):
+        return content
+
+    # Some providers return structured content arrays.
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict) and isinstance(item.get("text"), str):
+                parts.append(item["text"])
+        return "".join(parts)
+
+    return ""
+
+
+def generate_content(
+    client: str,
+    content: str,
+    model_name: str,
+    system_prompt: str,
+    temperature: float = 0.0,
+    thinking_budget: int = 128,
+    max_chars: int = 200,
+    timeout: int = 120,
+) -> str:
+    """
+    Generate content from a local OpenAI-compatible endpoint (e.g., LM Studio).
+    This mirrors the gemini_utils helper signature; thinking_budget is unused.
+    """
+    _ = thinking_budget  # Not supported by OpenAI-compatible local chat endpoints.
+
     payload = {
-        "model": MODEL,
-        "messages": [{"role": "user", "content": PROMPT}],
-        "temperature": 0.7,
+        "model": model_name,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": content},
+        ],
+        "temperature": temperature,
     }
 
     request = urllib.request.Request(
-        url=f"{BASE_URL}/chat/completions",
+        url=f"{client}/chat/completions",
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST",
     )
 
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             data = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        return f"HTTP_ERROR: {error}"
     except urllib.error.URLError as error:
-        print(f"Request failed: {error}")
-        return
+        return f"REQUEST_FAILED: {error}"
+    except json.JSONDecodeError as error:
+        return f"RESPONSE_JSON_DECODE_ERROR: {error}"
 
-    print(data)
+    text = _extract_response_text(data)
+    if text:
+        return text[:max_chars] if max_chars > 0 else text
+
+    return json.dumps(data)
+
+
+def generate_consolidation(
+    client: str,
+    text_content: str,
+    model_name: str,
+    system_prompt: str,
+    temperature: float = 0.0,
+    thinking_budget: int = 128,
+    max_chars: int = 200,
+) -> str:
+    """Generate consolidation text using local OpenAI-compatible chat completions."""
+    return generate_content(
+        client=client,
+        content=text_content,
+        model_name=model_name or MODEL,
+        system_prompt=system_prompt,
+        temperature=temperature,
+        thinking_budget=thinking_budget,
+        max_chars=max_chars,
+    )
 
 
 if __name__ == "__main__":
-    main()
+    print(
+        generate_consolidation(
+            client=get_local_client(),
+            text_content="Write a short story about a cat, max 3 sentences.",
+            model_name=MODEL,
+            system_prompt="You are a helpful assistant.",
+            temperature=0.7,
+            max_chars=1000,
+        )
+    )
 
 '''
 Example response:

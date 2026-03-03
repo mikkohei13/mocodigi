@@ -18,7 +18,7 @@ try:
 except ImportError:
     pass
 
-IMAGES_DIR = "images_lajifi"
+IMAGES_DIR = "images-solanaceae"
 
 # Browser-like User-Agent for image requests (some servers block scripts)
 IMAGE_REQUEST_HEADERS = {

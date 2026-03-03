@@ -7,6 +7,10 @@ from datetime import datetime
 
 from image_utils import get_subfolders
 from gemini_utils import get_gemini_client, generate_consolidation
+from local_utils import (
+    get_local_client,
+    generate_consolidation as generate_local_consolidation,
+)
 from cache_utils import (
     consolidation_cache_exists,
     load_consolidation_cache,
@@ -14,16 +18,16 @@ from cache_utils import (
 from comparison_utils import values_equal
 
 # Configuration (hardcoded)
-RUN_VERSION = "mac_1"
+RUN_VERSION = "h1"
 
 folder_names = [
     "images_lajifi/http___id.luomus.fi_C.512411",
 ]
 
 # Or every subfolder in a folder
-folder_names = get_subfolders("images")
+folder_names = get_subfolders("images_lajifi")
 
-MODEL_LOCATION = "cloud" # cloud or local
+MODEL_LOCATION = "local" # cloud or local
 model_name = "gemini-2.5-flash"
 model_name = "gemini-3-pro-preview"
 
@@ -195,7 +199,11 @@ def calculate_consensus(responses: list[dict]) -> tuple[dict, dict]:
 
 
 def main() -> None:
-    client = get_gemini_client(use_vertex_ai=USE_VERTEX_AI)
+    client = None
+    if MODEL_LOCATION == "cloud":
+        client = get_gemini_client(use_vertex_ai=USE_VERTEX_AI)
+    else:
+        client = get_local_client()
 
     print(f"Run version: {RUN_VERSION}")
     print(f"Model: {model_name}")
@@ -242,15 +250,25 @@ def main() -> None:
         for i, system_prompt in enumerate(SYSTEM_PROMPTS):
             print(f"\nCall {i + 1}/{len(SYSTEM_PROMPTS)}...")
             time.sleep(2)
-            
-            response_text = generate_consolidation(
-                client=client,
-                text_content=free_text,
-                model_name=model_name,
-                system_prompt=system_prompt,
-                temperature=temperature,
-                max_chars=MAX_CHARS,
-            )
+
+            if MODEL_LOCATION == "cloud":
+                response_text = generate_consolidation(
+                    client=client,
+                    text_content=free_text,
+                    model_name=model_name,
+                    system_prompt=system_prompt,
+                    temperature=temperature,
+                    max_chars=MAX_CHARS,
+                )
+            else:
+                response_text = generate_local_consolidation(
+                    client=client,
+                    text_content=free_text,
+                    model_name=model_name,
+                    system_prompt=system_prompt,
+                    temperature=temperature,
+                    max_chars=MAX_CHARS,
+                )
             
             raw_responses.append(response_text)
             parsed = parse_json_response(response_text)

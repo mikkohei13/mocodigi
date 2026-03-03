@@ -4,7 +4,7 @@
 **/credentials/**
 **/data/**
 **/output/**
-**/images_lajifi/**
+**/images**
 
 .env
 *.env

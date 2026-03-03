@@ -11,17 +11,17 @@ def post_process_transcript(text_content: str) -> str:
 # Configuration
 # List of folder names to process
 folder_names = [
-    "images_lajifi/http___id.luomus.fi_C.512411",
+    "images/kio",
 ]
 
 # Or every subfolder in a folder
-folder_names = get_subfolders("images")
+#folder_names = get_subfolders("images")
 
 model_name = "gemini-2.5-flash"
 model_name = "gemini-3-pro-preview"
 
 temperature = 0.0
-run_version = "mac_1_auth-test"
+run_version = "mac2"
 max_chars = 1000
 
 # True = Vertex AI Express Mode (API key from Google Cloud). False = Gemini Developer API (aistudio.google.com).
