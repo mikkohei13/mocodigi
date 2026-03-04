@@ -2,6 +2,7 @@
 import os
 import google.genai as genai
 from google.genai import types
+from typing import Any
 
 
 def get_gemini_client(use_vertex_ai: bool = False) -> genai.Client:
@@ -73,6 +74,65 @@ def generate_content(
     return collected_text
 
 
+def _serialize_chunk(chunk: Any) -> dict:
+    """Convert a Gemini chunk object into a JSON-serializable dictionary."""
+    if hasattr(chunk, "model_dump"):
+        return chunk.model_dump(mode="json", exclude_none=False)
+    return {"repr": repr(chunk)}
+
+
+def generate_content_with_stream_capture(
+    client: genai.Client,
+    content: types.Part | str,
+    model_name: str,
+    system_prompt: str,
+    temperature: float = 0.0,
+    thinking_budget: int = 128,
+    max_chars: int = 200
+) -> dict:
+    """
+    Stream Gemini response while capturing raw chunks and truncating output text.
+
+    Returns:
+        Dictionary containing:
+            - transcript_text: potentially truncated text used downstream
+            - full_text_received: all text received before stopping stream
+            - was_truncated: True if stream was cut after max_chars
+            - max_chars: configured max char limit
+            - chunks: serialized stream chunks received
+    """
+    response_stream = client.models.generate_content_stream(
+        model=model_name,
+        contents=[content],
+        config=types.GenerateContentConfig(
+            temperature=temperature,
+            system_instruction=system_prompt,
+            thinking_config=types.ThinkingConfig(thinking_budget=thinking_budget)
+        )
+    )
+
+    full_text_received = ""
+    chunks: list[dict] = []
+    was_truncated = False
+
+    for chunk in response_stream:
+        chunks.append(_serialize_chunk(chunk))
+        if chunk.text:
+            full_text_received += chunk.text
+            if len(full_text_received) > max_chars:
+                was_truncated = True
+                break
+
+    transcript_text = full_text_received[:max_chars] if was_truncated else full_text_received
+    return {
+        "transcript_text": transcript_text,
+        "full_text_received": full_text_received,
+        "was_truncated": was_truncated,
+        "max_chars": max_chars,
+        "chunks": chunks
+    }
+
+
 def generate_transcription(
     client: genai.Client,
     image_part: types.Part,
@@ -98,6 +158,29 @@ def generate_transcription(
         Response text from the API (may be truncated if max_chars exceeded)
     """
     return generate_content(
+        client=client,
+        content=image_part,
+        model_name=model_name,
+        system_prompt=system_prompt,
+        temperature=temperature,
+        thinking_budget=thinking_budget,
+        max_chars=max_chars
+    )
+
+
+def generate_transcription_with_stream_capture(
+    client: genai.Client,
+    image_part: types.Part,
+    model_name: str,
+    system_prompt: str,
+    temperature: float = 0.0,
+    thinking_budget: int = 128,
+    max_chars: int = 200
+) -> dict:
+    """
+    Generate transcription with stream chunk capture for diagnostics/auditing.
+    """
+    return generate_content_with_stream_capture(
         client=client,
         content=image_part,
         model_name=model_name,

@@ -10,7 +10,7 @@ import requests
 
 API_SUFFIX = "?format=json"
 LIMIT = 100000
-SLEEP_TIME = 3
+SLEEP_TIME = 1
 
 IMAGE_REQUEST_HEADERS = {
     "User-Agent": (
