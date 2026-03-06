@@ -108,6 +108,15 @@ def preprocess(text: str) -> tuple[str, dict[str, object]]:
     if helsinki_match:
         text = helsinki_pattern.sub("", text, count=1).strip()
 
+    # Remove "Botanical Museum University of Helsinki" title, ignoring whitespace
+    helsinki_pattern = re.compile(
+        r"Botanical[\s.,]*Museum[\s.,]*University[\s.,]*of[\s.,]*Helsinki",
+        flags=re.IGNORECASE,
+    )
+    helsinki_match = helsinki_pattern.search(text)
+    if helsinki_match:
+        text = helsinki_pattern.sub("", text, count=1).strip()
+
     # If still mentions Helsinki or Helsingfors, flag the case.
     # Todo: Check what these cases are, and whether the remaining Helsinki hinders text structurization
     if "Helsinki" in text or "Helsingin" in text or "Helsingfors" in text:
