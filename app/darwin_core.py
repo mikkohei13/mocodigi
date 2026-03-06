@@ -25,11 +25,11 @@ folder_names = [
 ]
 
 # Or every subfolder in a folder
-folder_names = get_subfolders("images_lajifi")
+folder_names = get_subfolders("images-solanaceae-trial")
 
 MODEL_LOCATION = "local" # cloud or local
-model_name = "gemini-2.5-flash"
-model_name = "gemini-3-pro-preview"
+# model_name = "gemini-2.5-flash"
+model_name = "gemini-3.1-pro-preview"
 
 temperature = 0.0
 USE_VERTEX_AI = True
