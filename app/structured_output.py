@@ -156,13 +156,13 @@ class HerbariumSpecimen(BaseModel):
         ),
     )
 
-SYSTEM_PROMPT = """You are working on OCR text extracted from a scanned herbarium specimen. Your task is to first correct any obvious OCR errors and then accurately convert the transcription into structured json format.
+SYSTEM_PROMPT = """Parse OCR text from a scanned herbarium specimen into the provided JSON schema. Rely on the descriptions within the JSON schema for field-specific formatting and mapping rules.
 
-Be careful checking whether the specimen has been collected from another country than where it is stored in.
-
-Extract values only, not labels. Strip any field label, prefix, or keyword that introduces the value on the label.
-
-Extract all field values verbatim — copy text exactly as it appears on the label, preserving original spelling, language, abbreviations, and punctuation. Only deviate from verbatim text where a field description explicitly asks for interpretation."""
+Follow these strict data extraction rules:
+- Values only: Strip all field labels, prefixes, or keywords (e.g., remove "Leg.", "Coll:", or "No.") from the extracted value.
+- Verbatim text unless otherwise specified: Preserve original spelling, language, abbreviations, and punctuation. You may correct obvious optical character recognition (OCR) artifacts (e.g., "l984" -> "1984"), but do not change historical spellings of places or names. Deviate from verbatim text only when a schema field description explicitly requires interpretation.
+- Institution vs. geography: Carefully distinguish between the institution/herbarium housing the specimen and the actual geographic location where the collection event occurred.
+- Missing data: If information for a field is not present in the text, return null. Do not hallucinate or infer missing data."""
 
 # Configuration (hardcoded)
 
