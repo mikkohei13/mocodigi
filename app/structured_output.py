@@ -156,7 +156,7 @@ class HerbariumSpecimen(BaseModel):
         ),
     )
 
-SYSTEM_PROMPT = """Your task is to accurately convert OCR text extracted from the images of scanned herbarium specimens into structured json format.
+SYSTEM_PROMPT = """You are working on OCR text extracted from a scanned herbarium specimen. Your task is to first correct any obvious OCR errors and then accurately convert the transcription into structured json format.
 
 Be careful checking whether the specimen has been collected from another country than where it is stored in.
 
