@@ -36,8 +36,8 @@ def image_name_from_url(image_url: str) -> str:
 
 def main() -> None:
     script_dir = Path(__file__).resolve().parent
-    input_path = script_dir / "images-solanaceae" / "occurrences.txt"
-    output_root = script_dir / "images-solanaceae"
+    input_path = script_dir.parent / "images-solanaceae" / "occurrences.txt"
+    output_root = script_dir.parent / "images-solanaceae"
 
     if not input_path.exists():
         raise FileNotFoundError(f"Input file not found: {input_path}")

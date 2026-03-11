@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent / "utils"))
+
 from image_utils import get_image_files_from_folder
 from cache_utils import (
     load_cache,
@@ -5,7 +10,6 @@ from cache_utils import (
     load_alignment_cache,
     save_alignment_cache
 )
-from pathlib import Path
 import re
 
 
@@ -248,22 +252,22 @@ def align_transcripts(transcripts: list[str], min_overlap: int = 3) -> str:
 # Configuration
 # List of folder names to process
 folder_names = [
-    "images/A01 - Copy",
-    "images/B01 - Copy",
-    "images/B05 - Copy",
-    "images/C02 - Copy",
-    "images/C05 - Copy",
-    "images/C13 - Copy",
-    "images/C14 - Copy",
-    "images/D07 - Copy",
-    "images/D08 - Copy",
-    "images/D11 - Copy",
-    "images/D12 - Copy",
-    "images/D14 - Copy",
-    "images/D16 - Copy",
-    "images/D17 - Copy",
-    "images/D22 - Copy",
-    "images/D23 - Copy",
+    "../images/A01 - Copy",
+    "../images/B01 - Copy",
+    "../images/B05 - Copy",
+    "../images/C02 - Copy",
+    "../images/C05 - Copy",
+    "../images/C13 - Copy",
+    "../images/C14 - Copy",
+    "../images/D07 - Copy",
+    "../images/D08 - Copy",
+    "../images/D11 - Copy",
+    "../images/D12 - Copy",
+    "../images/D14 - Copy",
+    "../images/D16 - Copy",
+    "../images/D17 - Copy",
+    "../images/D22 - Copy",
+    "../images/D23 - Copy",
 ]
 
 run_version = "16"

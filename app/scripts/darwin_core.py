@@ -1,8 +1,12 @@
 """Convert transcribed specimen data to Darwin Core (DwC) format using Gemini."""
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent / "utils"))
+
 import json
 import re
 import time
-from pathlib import Path
 from datetime import datetime
 
 from image_utils import get_subfolders
@@ -21,11 +25,11 @@ from comparison_utils import values_equal
 RUN_VERSION = "h1"
 
 folder_names = [
-    "images_lajifi/http___id.luomus.fi_C.512411",
+    "../images_lajifi/http___id.luomus.fi_C.512411",
 ]
 
 # Or every subfolder in a folder
-folder_names = get_subfolders("images-solanaceae-trial")
+folder_names = get_subfolders("../images-solanaceae-trial")
 
 MODEL_LOCATION = "local" # cloud or local
 # model_name = "gemini-2.5-flash"

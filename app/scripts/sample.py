@@ -5,7 +5,7 @@ import json
 import random
 
 # Configuration
-BASE_FOLDER = Path(__file__).resolve().parent / "images_lajifi"
+BASE_FOLDER = Path(__file__).resolve().parent.parent / "images_lajifi"
 RUN_ID = "run_h1"
 FOLDERS_TO_SAMPLE = 99
 OUTPUT_FILE = f"{BASE_FOLDER}/sample_transcripts.txt"

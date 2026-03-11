@@ -14,7 +14,7 @@ import json
 import os
 from pathlib import Path
 
-DATASET_DIR = "images-solanaceae-trial"
+DATASET_DIR = "../images-solanaceae-trial"
 RUN_FOLDER = "run_solanaceae2"
 TRANSCRIPT_SUFFIX = "_transcript.json"
 STRUCTURED_OUTPUT_FILE = "structured_output.json"

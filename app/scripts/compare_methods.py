@@ -10,7 +10,7 @@ from pathlib import Path
 from comparison_utils import values_equal
 
 RUN_ID = "run_h1"
-IMAGES_DIR = Path(__file__).resolve().parent / "images_lajifi"
+IMAGES_DIR = Path(__file__).resolve().parent.parent / "images_lajifi"
 
 # Fields that contain semicolon-separated values and should be set-compared.
 SEMICOLON_LIST_FIELDS = {"identifiedBy", "catalogNumber", "recordedBy"}

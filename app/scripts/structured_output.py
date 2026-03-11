@@ -1,6 +1,10 @@
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent / "utils"))
+
 import json
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -167,11 +171,11 @@ Follow these strict data extraction rules:
 # Configuration (hardcoded)
 
 folder_names = [
-    "images-solanaceae-trial/C.319050",
+    "../images-solanaceae-trial/C.319050",
 ]
 
 # Or every subfolder in a folder
-folder_names = get_subfolders("images-solanaceae-trial")
+folder_names = get_subfolders("../images-solanaceae-trial")
 
 RUN_VERSION = "solanaceae2"
 

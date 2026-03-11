@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent / "utils"))
+
 import html
 import json
 from datetime import datetime
-from pathlib import Path
 
 from preprocess_utils import preprocess
 
 # Configuration
-SOURCE_ROOT = "images_lajifi" # images-solanaceae-trial
+SOURCE_ROOT = "../images_lajifi" # images-solanaceae-trial
 RUN_VERSION = "h1" # solanaceae2
 
 SUBRUN_VERSION = "A"

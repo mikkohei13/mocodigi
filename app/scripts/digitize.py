@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent / "utils"))
+
 from image_utils import collect_image_files_from_folders, load_image_as_part, get_subfolders
 from gemini_utils import get_gemini_client, generate_transcription_with_stream_capture
 from cache_utils import cache_exists, load_cache, save_cache
@@ -33,11 +38,11 @@ def save_raw_gemini_response(cache_path, response_payload: dict) -> str:
 # Configuration
 # List of folder names to process
 folder_names = [
-    "images/kio",
+    "../images/kio",
 ]
 
 # Or every subfolder in a folder
-folder_names = get_subfolders("images-solanaceae-trial")
+folder_names = get_subfolders("../images-solanaceae-trial")
 
 model_name = "gemini-2.5-flash"
 model_name = "gemini-3.1-pro-preview"

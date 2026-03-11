@@ -16,8 +16,8 @@ from pathlib import Path
 
 RUN_FOLDER = "run_solanaceae1"
 TRANSCRIPT_SUFFIX = "_transcript.json"
-LEFT_LABEL = "images-solanaceae-trial"
-RIGHT_LABEL = "images-solanaceae-trial-cropped"
+LEFT_LABEL = "../images-solanaceae-trial"
+RIGHT_LABEL = "../images-solanaceae-trial-cropped"
 
 
 def read_transcript_text(json_path: Path) -> str:

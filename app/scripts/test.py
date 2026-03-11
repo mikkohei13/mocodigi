@@ -1,7 +1,11 @@
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent / "utils"))
+
 # Script that verifies transcript data against ground truth
 
 from cache_utils import load_consolidation_cache, load_alignment_cache
-from pathlib import Path
 from collections import Counter
 import unicodedata
 
@@ -12,9 +16,9 @@ DATATYPE = "consolidation"
 
 # List of folder names to process. Each contain images from a single specimen.
 folder_names = [
-    "images/D01",
-    "images/D02",
-    "images/D03",
+    "../images/D01",
+    "../images/D02",
+    "../images/D03",
 ]
 
 run_version = "17"

@@ -2,15 +2,19 @@
 Build an HTML table comparing specimen label data from FinBIF document.json
 to AI-transcribed data from run transcript JSON files.
 """
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent / "utils"))
+
 import html
 import json
 from datetime import datetime
-from pathlib import Path
 
 from image_utils import get_subfolders
 
 RUN_ID = "run_h1"
-IMAGES_DIR = Path(__file__).resolve().parent / "images_lajifi"
+IMAGES_DIR = Path(__file__).resolve().parent.parent / "images_lajifi"
 
 
 def extract_specimen_label_parts(doc: dict) -> list[str]:

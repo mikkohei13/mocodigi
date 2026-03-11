@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent / "utils"))
+
 from image_utils import get_image_files_from_folder, get_subfolders
 from gemini_utils import get_gemini_client, generate_consolidation
 from cache_utils import (
@@ -7,7 +12,6 @@ from cache_utils import (
     save_consolidation_cache
 )
 from rag_utils import get_rag_content
-from pathlib import Path
 
 
 def post_process_consolidation(text_content: str) -> str:
@@ -18,11 +22,11 @@ def post_process_consolidation(text_content: str) -> str:
 # Configuration
 # List of folder names to process
 folder_names = [
-    "images/A02 test"
+    "../images/A02 test"
 ]
 
 # Or every subfolder in a folder
-folder_names = get_subfolders("images")
+folder_names = get_subfolders("../images")
 
 model_name = "gemini-2.5-flash"
 model_name = "gemini-3-pro-preview"
