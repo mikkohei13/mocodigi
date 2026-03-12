@@ -1,51 +1,111 @@
-# Specimen Pipeline (GCS Upload Step)
+# Specimen Pipeline
 
-This pipeline step reads specimen folders from a configured input directory, extracts a specimen identifier (`qname`) from each folder's `document.json` (`document.documentId`), selects one JPG image, and uploads that image to Google Cloud Storage.
+Technical reference for pipeline steps in `app/pipeline`.
 
-## How It Works
+## Current Steps
 
-1. Load settings from `app/pipeline/settings/specimen_pipeline_settings.json`.
-2. Discover specimen folders under `settings.input_dir`.
-3. For each pending folder:
-   - Validate `document.json` and JPG presence.
-   - Extract `qname` from `document.documentId`.
-   - Build target GCS object path as `<gcs_prefix>/<qname>/<image_name>`.
-   - Upload to `gs://<gcs_bucket>/...`.
-4. Persist run status and per-folder records for resumable execution.
+### Step 1: Upload specimen image to GCS
 
-## Run Lifecycle and Resume
+- Script: `app/pipeline/specimen_pipeline.py`
+- Settings: `app/pipeline/settings/specimen_pipeline_settings.json`
+- Input:
+  - `settings.input_dir` specimen folders
+  - each folder uses `document.json` (`document.documentId`) + first sorted `.jpg`
+- Output:
+  - uploads image to `gs://<gcs_bucket>/<gcs_prefix>/<qname>/<image_name>`
+  - writes run artifacts:
+    - `app/output/pipeline_runs/<run_id>.json`
+    - `app/output/pipeline_runs/<run_id>.records.jsonl`
 
-- `run_id` identifies one logical run.
-- If a summary file for the same `run_id` exists with status `finished`, the script does not start.
-- If status is `running`, `partial`, `failed`, or `terminated`, the script resumes.
-- Already successful folders (`status == uploaded`) are skipped on resume.
-- With `--limit`, the script processes only part of pending folders and ends with `partial` if work remains.
+### Step 2: Submit transcription batch job to Gemini (Vertex)
 
-## Artifacts Used (Inputs)
+- Script: `app/pipeline/transcript_batch.py`
+- Settings: `app/pipeline/settings/transcribe_batch_settings.json`
+- Input:
+  - step-1 records: `app/output/pipeline_runs/<source_run_id>.records.jsonl`
+  - uses records with `status == "uploaded"` and valid `gcs_uri`
+  - environment:
+    - `GOOGLE_CLOUD_PROJECT`
+    - `GOOGLE_CLOUD_LOCATION`
+    - ADC via `GOOGLE_APPLICATION_CREDENTIALS` / `GOOGLE_CREDENTIALS_PATH`
+- Behavior:
+  - builds Gemini batch request JSONL from uploaded image `gcs_uri` values
+  - uploads batch input to
+    - `gs://<gcs_bucket>/<gcs_prefix>/batch_jobs/<run_id>/requests.jsonl`
+  - submits Vertex batch job (model from settings)
+  - configures batch output prefix:
+    - `gs://<gcs_bucket>/<gcs_prefix>/batch_jobs/<run_id>/output`
+- Output:
+  - writes run artifacts:
+    - `app/output/pipeline_runs/<run_id>.transcript_batch.json`
+    - `app/output/pipeline_runs/<run_id>.transcript_batch.records.jsonl`
+  - stores submitted batch job metadata in summary (`data.batch_job`)
 
-- **Settings JSON**: `app/pipeline/settings/specimen_pipeline_settings.json`
-  - Required keys: `run_id`, `input_dir`, `gcs_bucket`, `gcs_location`, `gcs_prefix`
-- **Specimen folder contents**:
-  - `document.json` containing `document.documentId`
-  - One or more `.jpg` files (first sorted JPG is selected)
-- **Environment/config**:
+### Step 3: Monitor batch job and download raw output
+
+- Script: `app/pipeline/transcript_batch_monitor.py`
+- Settings: `app/pipeline/settings/transcribe_batch_monitor_settings.json`
+- Input:
+  - step-2 summary: `app/output/pipeline_runs/<source_run_id>.transcript_batch.json`
+  - uses `data.batch_job.name` and `settings.batch_output_uri_prefix`
+  - environment:
+    - `GOOGLE_CLOUD_PROJECT`
+    - `GOOGLE_CLOUD_LOCATION`
+    - ADC via `GOOGLE_APPLICATION_CREDENTIALS` / `GOOGLE_CREDENTIALS_PATH`
+- Behavior:
+  - polls Vertex batch job with fixed interval (`--poll-seconds`, default 300)
+  - timeout via `--timeout-hours` (default 24); timeout ends run as `partial`
+  - when job succeeds, downloads raw output blobs under output prefix to local directory
+  - local destination root:
+    - `<settings.download_dir>/<run_id>.transcript_batch_monitor.raw/`
+- Output:
+  - writes run artifacts:
+    - `app/output/pipeline_runs/<run_id>.transcript_batch_monitor.json`
+    - `app/output/pipeline_runs/<run_id>.transcript_batch_monitor.records.jsonl`
+
+## Run Commands
+
+- Required environment:
   - `GOOGLE_CLOUD_PROJECT`
-  - Google ADC credentials via standard environment resolution:
-    - `GOOGLE_APPLICATION_CREDENTIALS`
-    - `GOOGLE_CREDENTIALS_PATH`
+  - `GOOGLE_CLOUD_LOCATION`
+  - `GOOGLE_APPLICATION_CREDENTIALS` (or equivalent ADC setup)
+- Step 1:
+  - `python3 app/pipeline/specimen_pipeline.py`
+  - optional partial run: `python3 app/pipeline/specimen_pipeline.py --limit 100`
+- Step 2:
+  - `python3 app/pipeline/transcript_batch.py`
+  - optional partial run: `python3 app/pipeline/transcript_batch.py --limit 100`
+- Step 3:
+  - `python3 app/pipeline/transcript_batch_monitor.py`
+  - custom timeout: `python3 app/pipeline/transcript_batch_monitor.py --timeout-hours 24`
+  - custom poll interval: `python3 app/pipeline/transcript_batch_monitor.py --poll-seconds 300`
 
-## Artifacts Created (Outputs)
+## Shared Patterns (All Steps)
 
-- **Run summary JSON**: `app/output/pipeline_runs/<run_id>.json`
-  - Run metadata, current status, timestamps, error (if any), aggregate counts, and paths
-- **Per-specimen JSONL records**: `app/output/pipeline_runs/<run_id>.records.jsonl`
-  - One append-only JSON record per processed folder event
-  - Used as the main detailed execution log and resume source
+- Settings-driven execution:
+  - one settings file per step in `app/pipeline/settings`
+  - explicit required keys validated at startup
+- Standard run lifecycle:
+  - `running`, `partial`, `finished`, `failed`, `terminated`
+- Resume behavior:
+  - if summary status is `finished`, do not run again
+  - otherwise resume using existing summary/records where applicable
+- Deterministic processing:
+  - stable ordering (`sorted`) for folders/records
+  - `--limit` supported for partial controlled runs
+- State and audit artifacts:
+  - summary JSON (run-level status + counts + settings snapshot)
+  - append-only JSONL records (item-level events and errors)
+- Logging:
+  - timestamped log lines via shared style (`[ISO_TIMESTAMP] message`)
+- Failure handling:
+  - termination signals mapped to `terminated`
+  - unhandled exceptions mapped to `failed` with persisted error message
 
-## Run Status Values
+## Step Implementation Rules (for new steps)
 
-- `running`: run is in progress
-- `partial`: run ended intentionally before all pending folders were processed (typically due to `--limit`)
-- `finished`: run completed successfully for all pending folders
-- `failed`: run aborted due to an unhandled exception
-- `terminated`: run interrupted by termination signal (e.g. SIGINT/SIGTERM)
+- Keep the same run/status contract and output folder: `app/output/pipeline_runs/`.
+- Persist early (`running`) before heavy work starts.
+- Write item-level records incrementally; avoid in-memory-only state.
+- Include enough metadata in summary for the next step to continue without recomputation.
+- Do not overwrite previous step artifacts; create step-specific output files.
