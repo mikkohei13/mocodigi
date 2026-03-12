@@ -3,10 +3,9 @@
   "type": "pipeline_settings",
   "settings": {
     "run_id": "h1_2026-03-12",
-    "google_cloud_project": "replace-with-your-gcp-project-id",
-    "google_cloud_location": "europe-west1",
     "input_dir": "app/images-solanaceae-trial",
-    "gcs_bucket": "replace-with-your-gcs-bucket",
-    "gcs_prefix": "specimen-pipeline"
+    "gcs_bucket": "mocodigi",
+    "gcs_location": "europe_north1",
+    "gcs_prefix": "mocodigi-pipeline"
   }
 }

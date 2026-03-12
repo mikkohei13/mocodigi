@@ -69,3 +69,50 @@ Rename Darwin Core files:
    ```bash
    find . -type f -name 'darwin_core.json' -print0 | while IFS= read -r -d '' f; do   dir=${f%/darwin_core.json};   mv -- "$f" "$dir/darwin_core_v5_temp.json"; done
    ```
+
+### gcloud commands
+
+Use ADC credentials from gcloud-work config:
+
+   export CLOUDSDK_CONFIG=~/.config/gcloud-work
+
+List projects:
+
+   ```bash
+   gcloud projects list
+   ```
+
+Get quota project ID:
+
+   ```bash
+   cat ~/.config/gcloud-work/application_default_credentials.json | grep quota_project_id
+   ```
+
+Set project:
+
+   ```bash
+   gcloud config set project project-84e46a27-123b-422e-8a5
+   ```
+
+Get project:
+
+   ```bash
+   gcloud config get-value project
+   ```
+
+Create bucket:
+
+   ```bash
+   gcloud storage buckets create gs://mocodigi --location=europe_north1
+   ```
+List  files in bucket:
+
+   ```bash
+   gcloud storage ls -l --recursive gs://mocodigi
+   ```
+
+Remove files from bucket:
+
+   ```bash
+   gcloud storage rm "gs://mocodigi/PREFIX/**"
+   ```
