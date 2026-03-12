@@ -2,14 +2,13 @@
   "format_version": "0.1",
   "type": "pipeline_settings",
   "settings": {
-    "run_id": "h1_2026-03-12",
+    "run_id": "h1_2026-03-12-beta",
     "source_run_id": "h1_2026-03-12",
     "gcs_bucket": "mocodigi",
     "gcs_location": "europe_north1",
     "gcs_prefix": "mocodigi-pipeline",
     "model": "gemini-3.1-pro-preview",
     "temperature": 0.0,
-    "max_output_tokens": 1024,
     "user_prompt": "Transcribe this herbarium specimen image. Return only 'Transcription': followed by your transcription.",
     "system_message": "Your task is to accurately transcribe handwritten and typewritten herbarium specimen labels based on a photograph, minimizing CER and WER. Work character by character, word by word, line by line, label by label, transcribing the text exactly as it appears on the labels. To maintain the authenticity of the historical text, retain spelling errors, grammar, syntax, capitalization, and punctuation. Transcribe all the text on the labels. They may be in any language using Latin alphabet with diacritics, and may also contain numbers, dates, codes and abbreviations. In your final response write Transcription: followed only by your transcription. Do not include any other text, conversational filler, or descriptions of the labels in your response."
   }

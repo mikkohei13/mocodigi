@@ -16,9 +16,12 @@ import signal
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.request import Request, urlopen
 
 import google.genai as genai
+import google.auth
 from google.cloud import storage
+from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.genai import types
 
 try:
@@ -111,6 +114,144 @@ def resolve_adc_credentials_from_env() -> Path | None:
     return resolve_path(credentials_path)
 
 
+def resolve_project_id(
+    *,
+    settings: dict[str, Any],
+    source_summary: dict[str, Any] | None,
+) -> str:
+    settings_project = str(settings.get("google_cloud_project", "")).strip()
+    env_project = os.getenv("GOOGLE_CLOUD_PROJECT", "").strip()
+    source_project = ""
+    if source_summary:
+        source_project = str(
+            source_summary.get("settings", {}).get("google_cloud_project", "")
+        ).strip()
+
+    candidates = [("settings.google_cloud_project", settings_project), ("GOOGLE_CLOUD_PROJECT", env_project), ("step1_summary.settings.google_cloud_project", source_project)]
+    non_empty = [(label, value) for label, value in candidates if value]
+    if not non_empty:
+        raise ValueError(
+            "Missing Google Cloud project. Set settings.google_cloud_project or GOOGLE_CLOUD_PROJECT."
+        )
+
+    distinct_values = {value for _, value in non_empty}
+    if len(distinct_values) > 1:
+        details = ", ".join(f"{label}={value}" for label, value in non_empty)
+        raise ValueError(
+            "Conflicting Google Cloud project values detected: "
+            f"{details}. Use one consistent project for step-1 uploads and step-2 batch submission."
+        )
+
+    return non_empty[0][1]
+
+
+def fetch_project_number(project_id: str) -> str | None:
+    try:
+        credentials, _ = google.auth.default(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+        credentials.refresh(GoogleAuthRequest())
+        request = Request(
+            f"https://cloudresourcemanager.googleapis.com/v1/projects/{project_id}",
+            headers={"Authorization": f"Bearer {credentials.token}"},
+        )
+        with urlopen(request, timeout=20) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        project_number = str(payload.get("projectNumber", "")).strip()
+        return project_number or None
+    except Exception as exc:
+        log(f"Warning: could not resolve project number for IAM preflight: {exc}")
+        return None
+
+
+def bucket_member_has_any_role(
+    *,
+    storage_client: storage.Client,
+    bucket_name: str,
+    member: str,
+    accepted_roles: set[str],
+) -> tuple[bool, str | None]:
+    try:
+        bucket = storage_client.bucket(bucket_name)
+        policy = bucket.get_iam_policy(requested_policy_version=3)
+    except Exception as exc:
+        return False, f"could not read IAM policy for bucket '{bucket_name}': {exc}"
+
+    for binding in policy.bindings:
+        role = str(binding.get("role", ""))
+        members = set(binding.get("members", []))
+        if role in accepted_roles and member in members:
+            return True, None
+    return False, None
+
+
+def ensure_vertex_service_agent_can_access_gcs(
+    *,
+    storage_client: storage.Client,
+    project_id: str,
+    input_uris: list[str],
+    output_uri_prefix: str,
+) -> None:
+    project_number = fetch_project_number(project_id)
+    if not project_number:
+        return
+
+    vertex_service_agent = f"service-{project_number}@gcp-sa-aiplatform.iam.gserviceaccount.com"
+    vertex_member = f"serviceAccount:{vertex_service_agent}"
+
+    input_buckets = {parse_gs_uri(uri)[0] for uri in input_uris if uri.startswith("gs://")}
+    output_bucket, _ = parse_gs_uri(output_uri_prefix)
+
+    input_reader_roles = {
+        "roles/storage.objectViewer",
+        "roles/storage.objectAdmin",
+        "roles/storage.admin",
+        "roles/storage.legacyBucketReader",
+        "roles/storage.legacyObjectReader",
+    }
+    output_writer_roles = {
+        "roles/storage.objectCreator",
+        "roles/storage.objectAdmin",
+        "roles/storage.admin",
+        "roles/storage.legacyBucketWriter",
+    }
+
+    for bucket_name in sorted(input_buckets):
+        has_access, policy_error = bucket_member_has_any_role(
+            storage_client=storage_client,
+            bucket_name=bucket_name,
+            member=vertex_member,
+            accepted_roles=input_reader_roles,
+        )
+        if policy_error:
+            log(f"Warning: {policy_error}")
+            continue
+        if not has_access:
+            raise PermissionError(
+                "Vertex batch runtime service agent cannot read input files. Grant at least "
+                f"'roles/storage.objectViewer' on bucket '{bucket_name}' to '{vertex_service_agent}'. "
+                f"Example: gcloud storage buckets add-iam-policy-binding gs://{bucket_name} "
+                f"--member=\"serviceAccount:{vertex_service_agent}\" --role=\"roles/storage.objectViewer\""
+            )
+
+    has_output_access, output_policy_error = bucket_member_has_any_role(
+        storage_client=storage_client,
+        bucket_name=output_bucket,
+        member=vertex_member,
+        accepted_roles=output_writer_roles,
+    )
+    if output_policy_error:
+        log(f"Warning: {output_policy_error}")
+        return
+    if not has_output_access:
+        raise PermissionError(
+            "Vertex batch runtime service agent cannot write output files. Grant at least "
+            f"'roles/storage.objectCreator' on bucket '{output_bucket}' to '{vertex_service_agent}'. "
+            f"Example: gcloud storage buckets add-iam-policy-binding gs://{output_bucket} "
+            f"--member=\"serviceAccount:{vertex_service_agent}\" --role=\"roles/storage.objectCreator\""
+        )
+
+
 def upload_file_to_gcs(
     storage_client: storage.Client,
     local_file: Path,
@@ -159,7 +300,6 @@ def build_batch_request_row(
     system_message: str,
     user_prompt: str,
     temperature: float,
-    max_output_tokens: int,
 ) -> dict[str, Any]:
     return {
         "request": {
@@ -175,7 +315,6 @@ def build_batch_request_row(
             ],
             "generationConfig": {
                 "temperature": temperature,
-                "maxOutputTokens": max_output_tokens,
             },
         }
     }
@@ -191,8 +330,8 @@ def validate_settings(raw: dict[str, Any]) -> dict[str, Any]:
         "gcs_prefix",
         "model",
         "temperature",
-        "max_output_tokens",
         "system_message",
+        "user_prompt",
     ]
     missing = [key for key in required if settings.get(key) in (None, "")]
     if missing:
@@ -233,14 +372,8 @@ def main() -> None:
     gcs_prefix = str(settings["gcs_prefix"]).strip("/")
     model_name = str(settings["model"]).strip()
     temperature = float(settings["temperature"])
-    max_output_tokens = int(settings["max_output_tokens"])
     system_message = str(settings["system_message"]).strip()
-    user_prompt = str(
-        settings.get(
-            "user_prompt",
-            "Transcribe all visible text from this herbarium specimen image exactly as shown.",
-        )
-    ).strip()
+    user_prompt = str(settings["user_prompt"]).strip()
     source_records_file_setting = str(
         settings.get(
             "source_records_file",
@@ -248,6 +381,16 @@ def main() -> None:
         )
     ).strip()
     source_records_file = resolve_path(source_records_file_setting)
+    source_summary_file_setting = str(
+        settings.get(
+            "source_summary_file",
+            f"app/output/pipeline_runs/{source_run_id}.json",
+        )
+    ).strip()
+    source_summary_file = resolve_path(source_summary_file_setting)
+    source_summary: dict[str, Any] | None = None
+    if source_summary_file.exists():
+        source_summary = load_json(source_summary_file)
 
     output_base = resolve_path(f"app/output/pipeline_runs/{run_id}.transcript_batch.json")
     output_file = output_base
@@ -257,9 +400,7 @@ def main() -> None:
     batch_input_uri = f"gs://{gcs_bucket}/{gcs_prefix}/batch_jobs/{run_id}/requests.jsonl"
     batch_output_uri_prefix = f"gs://{gcs_bucket}/{gcs_prefix}/batch_jobs/{run_id}/output"
 
-    project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "").strip()
-    if not project_id:
-        raise ValueError("Missing Google Cloud project. Set GOOGLE_CLOUD_PROJECT in environment.")
+    project_id = resolve_project_id(settings=settings, source_summary=source_summary)
     vertex_location = os.getenv("GOOGLE_CLOUD_LOCATION", "").strip()
     if not vertex_location:
         raise ValueError("Missing Vertex location. Set GOOGLE_CLOUD_LOCATION in environment.")
@@ -272,6 +413,7 @@ def main() -> None:
     log(f"Run id: {run_id}")
     log(f"Source run id: {source_run_id}")
     log(f"Source records file: {source_records_file}")
+    log(f"Source summary file: {source_summary_file}")
     log(f"Project: {project_id}")
     log(f"Vertex location: {vertex_location}")
     log(f"Configured GCS location: {gcs_location}")
@@ -361,7 +503,6 @@ def main() -> None:
             "gcs_location": gcs_location,
             "model": model_name,
             "temperature": temperature,
-            "max_output_tokens": max_output_tokens,
             "batch_input_uri": batch_input_uri,
             "batch_output_uri_prefix": batch_output_uri_prefix,
             "output_file": str(output_file),
@@ -394,6 +535,7 @@ def main() -> None:
     signal.signal(signal.SIGTERM, handle_termination_signal)
 
     queued_records: list[dict[str, Any]] = []
+    queued_input_uris: list[str] = []
     pending_specimens = source_specimens
     if args.limit is not None:
         pending_specimens = source_specimens[: args.limit]
@@ -441,9 +583,9 @@ def main() -> None:
                 system_message=system_message,
                 user_prompt=user_prompt,
                 temperature=temperature,
-                max_output_tokens=max_output_tokens,
             )
             queued_records.append(batch_row)
+            queued_input_uris.append(gcs_uri)
             record["status"] = "eligible"
             records_by_folder[folder_key] = record
             append_jsonl(records_file, record)
@@ -469,6 +611,12 @@ def main() -> None:
             target_uri=batch_input_uri,
         )
         log(f"Uploaded batch input JSONL: {uploaded_input_uri}")
+        ensure_vertex_service_agent_can_access_gcs(
+            storage_client=storage_client,
+            project_id=project_id,
+            input_uris=[uploaded_input_uri] + queued_input_uris,
+            output_uri_prefix=batch_output_uri_prefix,
+        )
 
         batch_job = client.batches.create(
             model=model_name,
