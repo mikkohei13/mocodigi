@@ -90,7 +90,7 @@ isProject: false
 - Treat logs as immutable run records.
 - Allow “rerun from prior run record” by generating a new config snapshot from logged parameters (optionally edited), while preserving lineage (`parent_run_id`).
 
-## Option 1 (Recommended First): Custom Orchestrator
+## First MVP Version: Custom Orchestrator
 
 - Build a thin orchestrator that reads JSON configs and runs one stage manually at a time:
   - submit transcription batch
@@ -99,12 +99,6 @@ isProject: false
   - submit structurization batch
   - collect structurization results
 - Persist state transitions in a simple manifest (JSONL first).
-
-## Option 2: Custom Core + Open-Source Workflow Wrapper
-
-- Keep the exact same JSON config contract and stage logic.
-- Add a light workflow library only for retries, scheduling, and run observability.
-- This keeps migration low-risk: orchestration changes, core stage code stays.
 
 ## Phase Plan
 
