@@ -2,8 +2,8 @@
   "format_version": "0.1",
   "type": "pipeline_settings",
   "settings": {
-    "run_id": "h1_2026-03-12-gamma-monitor",
-    "source_run_id": "h1_2026-03-12-gamma",
+    "run_id": "solanaceae-trial",
+    "source_run_id": "solanaceae-trial",
     "download_dir": "app/output/pipeline_runs"
   }
 }

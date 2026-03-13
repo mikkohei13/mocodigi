@@ -6,6 +6,8 @@
 **/output/**
 **/images**
 
+pipeline/settings/*
+
 .env
 *.env
 

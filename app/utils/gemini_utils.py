@@ -35,7 +35,7 @@ def generate_content(
     model_name: str,
     system_prompt: str,
     temperature: float = 0.0,
-    thinking_budget: int = 128,
+    thinking_level: types.ThinkingLevel = types.ThinkingLevel.LOW,
     max_chars: int = 200
 ) -> str:
     """
@@ -47,7 +47,7 @@ def generate_content(
         model_name: Name of the Gemini model to use
         system_prompt: System instruction prompt
         temperature: Temperature for generation (default: 0.0)
-        thinking_budget: Thinking budget for the model (default: 128)
+        thinking_level: Thinking level for Gemini 3 models (default: LOW)
         max_chars: Maximum characters to accumulate before breaking
         
     Returns:
@@ -59,7 +59,7 @@ def generate_content(
         config=types.GenerateContentConfig(
             temperature=temperature,
             system_instruction=system_prompt,
-            thinking_config=types.ThinkingConfig(thinking_budget=thinking_budget)
+            thinking_config=types.ThinkingConfig(thinking_level=thinking_level)
         )
     )
     
@@ -87,7 +87,7 @@ def generate_content_with_stream_capture(
     model_name: str,
     system_prompt: str,
     temperature: float = 0.0,
-    thinking_budget: int = 128,
+    thinking_level: types.ThinkingLevel = types.ThinkingLevel.LOW,
     max_chars: int = 200
 ) -> dict:
     """
@@ -107,7 +107,7 @@ def generate_content_with_stream_capture(
         config=types.GenerateContentConfig(
             temperature=temperature,
             system_instruction=system_prompt,
-            thinking_config=types.ThinkingConfig(thinking_budget=thinking_budget)
+            thinking_config=types.ThinkingConfig(thinking_level=thinking_level)
         )
     )
 
@@ -139,7 +139,7 @@ def generate_transcription(
     model_name: str,
     system_prompt: str,
     temperature: float = 0.0,
-    thinking_budget: int = 128,
+    thinking_level: types.ThinkingLevel = types.ThinkingLevel.LOW,
     max_chars: int = 200
 ) -> str:
     """
@@ -151,7 +151,7 @@ def generate_transcription(
         model_name: Name of the Gemini model to use
         system_prompt: System instruction prompt
         temperature: Temperature for generation (default: 0.0)
-        thinking_budget: Thinking budget for the model (default: 128)
+        thinking_level: Thinking level for Gemini 3 models (default: LOW)
         max_chars: Maximum characters to accumulate before breaking (default: 200)
         
     Returns:
@@ -163,7 +163,7 @@ def generate_transcription(
         model_name=model_name,
         system_prompt=system_prompt,
         temperature=temperature,
-        thinking_budget=thinking_budget,
+        thinking_level=thinking_level,
         max_chars=max_chars
     )
 
@@ -174,7 +174,7 @@ def generate_transcription_with_stream_capture(
     model_name: str,
     system_prompt: str,
     temperature: float = 0.0,
-    thinking_budget: int = 128,
+    thinking_level: types.ThinkingLevel = types.ThinkingLevel.LOW,
     max_chars: int = 200
 ) -> dict:
     """
@@ -186,7 +186,7 @@ def generate_transcription_with_stream_capture(
         model_name=model_name,
         system_prompt=system_prompt,
         temperature=temperature,
-        thinking_budget=thinking_budget,
+        thinking_level=thinking_level,
         max_chars=max_chars
     )
 
@@ -197,7 +197,7 @@ def generate_consolidation(
     model_name: str,
     system_prompt: str,
     temperature: float = 0.0,
-    thinking_budget: int = 128,
+    thinking_level: types.ThinkingLevel = types.ThinkingLevel.LOW,
     max_chars: int = 200
 ) -> str:
     """
@@ -209,7 +209,7 @@ def generate_consolidation(
         model_name: Name of the Gemini model to use
         system_prompt: System instruction prompt
         temperature: Temperature for generation (default: 0.0)
-        thinking_budget: Thinking budget for the model (default: 128)
+        thinking_level: Thinking level for Gemini 3 models (default: LOW)
         max_chars: Maximum characters to accumulate before breaking (default: 200)
         
     Returns:
@@ -221,7 +221,7 @@ def generate_consolidation(
         model_name=model_name,
         system_prompt=system_prompt,
         temperature=temperature,
-        thinking_budget=thinking_budget,
+        thinking_level=thinking_level,
         max_chars=max_chars
     )
 

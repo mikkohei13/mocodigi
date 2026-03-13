@@ -2,7 +2,7 @@
   "format_version": "0.1",
   "type": "pipeline_settings",
   "settings": {
-    "run_id": "h1_2026-03-12",
+    "run_id": "solanaceae-trial",
     "input_dir": "app/images-solanaceae-trial",
     "gcs_bucket": "mocodigi",
     "gcs_location": "europe_north1",
