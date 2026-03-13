@@ -1,9 +1,9 @@
-"""Monitor Vertex batch job and download raw results.
+"""Monitor Vertex batch job and download responses.
 
 Step 3:
 - Read submitted batch job metadata from step-2 summary.
 - Poll job state with fixed interval until terminal state or timeout.
-- Download raw batch output JSONL files from GCS to local filesystem.
+- Download batch response files from GCS to local filesystem.
 - Persist one run-level summary JSON + append-only JSONL records.
 """
 
@@ -155,7 +155,7 @@ def validate_settings(raw: dict[str, Any]) -> dict[str, Any]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Monitor Vertex batch job and download raw results when completed."
+        description="Monitor Vertex batch job and download raw responses when completed."
     )
     parser.add_argument(
         "--timeout-hours",
@@ -196,14 +196,15 @@ def main() -> None:
         str(
             settings.get(
                 "source_summary_file",
-                f"app/output/pipeline_runs/{source_run_id}.transcript_batch.json",
+                f"app/output/pipeline_runs/{source_run_id}/{source_run_id}.transcript_batch.json",
             )
         ).strip()
     )
 
-    output_file = resolve_path(f"app/output/pipeline_runs/{run_id}.transcript_batch_monitor.json")
+    run_output_dir = resolve_path(f"app/output/pipeline_runs/{run_id}")
+    output_file = run_output_dir / f"{run_id}.transcript_batch_monitor.json"
     records_file = output_file.with_name(f"{output_file.stem}.records.jsonl")
-    download_root = download_dir / f"{run_id}.transcript_batch_monitor.raw"
+    download_root = run_output_dir / "transcript_batch_responses"
 
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "").strip()
     if not project_id:
@@ -303,6 +304,7 @@ def main() -> None:
             "batch_job_name": batch_job_name,
             "batch_output_uri_prefix": batch_output_uri_prefix,
             "download_dir": str(download_dir),
+            "run_output_dir": str(run_output_dir),
             "download_root": str(download_root),
             "output_file": str(output_file),
             "records_file": str(records_file),

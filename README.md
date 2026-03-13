@@ -114,5 +114,5 @@ List  files in bucket:
 Remove files from bucket:
 
    ```bash
-   gcloud storage rm "gs://mocodigi/PREFIX/**"
+   gcloud storage rm --recursive gs://mocodigi/mocodigi-pipeline/
    ```

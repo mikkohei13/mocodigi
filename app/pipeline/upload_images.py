@@ -30,7 +30,7 @@ except ImportError:
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
-SETTINGS_PATH = SCRIPT_DIR / "settings" / "specimen_pipeline_settings.json"
+SETTINGS_PATH = SCRIPT_DIR / "settings" / "upload_images_settings.json"
 RUN_STATUS_RUNNING = "running"
 RUN_STATUS_FINISHED = "finished"
 RUN_STATUS_PARTIAL = "partial"
@@ -204,8 +204,9 @@ def main() -> None:
 
     input_dir = resolve_path(settings["input_dir"])
 
-    output_file_name = f"app/output/pipeline_runs/{settings['run_id']}.json"
-    output_file = resolve_path(output_file_name)
+    run_id = str(settings["run_id"]).strip()
+    run_output_dir = resolve_path(f"app/output/pipeline_runs/{run_id}")
+    output_file = run_output_dir / f"{run_id}_upload_images.json"
     records_file = output_file.with_name(f"{output_file.stem}.records.jsonl")
 
     if not input_dir.exists() or not input_dir.is_dir():
@@ -309,12 +310,13 @@ def main() -> None:
         "last_updated_at": now_iso(),
         "error": None,
         "settings": {
-            "run_id": settings["run_id"],
+            "run_id": run_id,
             "google_cloud_project": project_id,
             "gcs_location": gcs_location,
             "input_dir": str(input_dir),
             "gcs_bucket": gcs_bucket,
             "gcs_prefix": gcs_prefix,
+            "run_output_dir": str(run_output_dir),
             "output_file": str(output_file),
             "records_file": str(records_file),
         },
