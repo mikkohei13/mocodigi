@@ -12,8 +12,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import signal
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.request import Request, urlopen
@@ -23,6 +21,25 @@ import google.auth
 from google.cloud import storage
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.genai import types
+from utils.files import (
+    append_jsonl,
+    load_json,
+    load_jsonl_rows,
+    resolve_path as resolve_path_from_root,
+    save_json,
+)
+from utils.gcp import parse_gs_uri, resolve_adc_credentials_from_env, upload_file_to_gcs_uri
+from utils.runtime import (
+    RUN_STATUS_FAILED,
+    RUN_STATUS_FINISHED,
+    RUN_STATUS_PARTIAL,
+    RUN_STATUS_RUNNING,
+    RUN_STATUS_TERMINATED,
+    RunTerminatedError,
+    install_termination_handlers,
+    log,
+    now_iso,
+)
 
 try:
     from dotenv import load_dotenv
@@ -35,83 +52,7 @@ except ImportError:
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
 SETTINGS_PATH = SCRIPT_DIR / "settings" / "transcribe_batch_settings.json"
-RUN_STATUS_RUNNING = "running"
-RUN_STATUS_FINISHED = "finished"
-RUN_STATUS_PARTIAL = "partial"
-RUN_STATUS_FAILED = "failed"
-RUN_STATUS_TERMINATED = "terminated"
 SUMMARY_FLUSH_EVERY = 200
-
-
-class RunTerminatedError(Exception):
-    pass
-
-
-def now_iso() -> str:
-    return datetime.now().isoformat()
-
-
-def log(message: str) -> None:
-    print(f"[{now_iso()}] {message}")
-
-
-def load_json(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
-
-
-def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(payload, ensure_ascii=False))
-        f.write("\n")
-
-
-def resolve_path(path_str: str) -> Path:
-    path = Path(path_str)
-    if path.is_absolute():
-        return path
-    return PROJECT_ROOT / path
-
-
-def parse_gs_uri(uri: str) -> tuple[str, str]:
-    value = (uri or "").strip()
-    if not value.startswith("gs://"):
-        raise ValueError(f"Invalid GCS URI: {uri}")
-    without_scheme = value[5:]
-    if "/" not in without_scheme:
-        return without_scheme, ""
-    bucket, blob = without_scheme.split("/", 1)
-    return bucket, blob
-
-
-def resolve_adc_credentials_from_env() -> Path | None:
-    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
-    credentials_root = os.getenv("GOOGLE_CREDENTIALS_PATH", "").strip()
-    if not credentials_path:
-        return None
-
-    candidate = Path(credentials_path)
-    if candidate.is_absolute():
-        if candidate.exists():
-            return candidate
-        if credentials_root:
-            root_path = resolve_path(credentials_root)
-            joined = root_path / credentials_path.lstrip("/")
-            if joined.exists():
-                return joined
-        return candidate
-
-    if credentials_root:
-        root_path = resolve_path(credentials_root)
-        return root_path / credentials_path
-    return resolve_path(credentials_path)
 
 
 def resolve_project_id(
@@ -252,36 +193,8 @@ def ensure_vertex_service_agent_can_access_gcs(
         )
 
 
-def upload_file_to_gcs(
-    storage_client: storage.Client,
-    local_file: Path,
-    target_uri: str,
-) -> str:
-    bucket_name, blob_name = parse_gs_uri(target_uri)
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(blob_name)
-    blob.upload_from_filename(str(local_file))
-    if not blob.exists(client=storage_client):
-        raise RuntimeError(f"Uploaded object not found after upload: {target_uri}")
-    return target_uri
-
-
 def load_records_from_jsonl(path: Path) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    if not path.exists():
-        return rows
-    with path.open("r", encoding="utf-8") as f:
-        for line in f:
-            item = line.strip()
-            if not item:
-                continue
-            try:
-                payload = json.loads(item)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(payload, dict):
-                rows.append(payload)
-    return rows
+    return load_jsonl_rows(path)
 
 
 def latest_step1_records_by_folder(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -380,19 +293,19 @@ def main() -> None:
             f"app/output/pipeline_runs/{source_run_id}/{source_run_id}.records.jsonl",
         )
     ).strip()
-    source_records_file = resolve_path(source_records_file_setting)
+    source_records_file = resolve_path_from_root(PROJECT_ROOT, source_records_file_setting)
     source_summary_file_setting = str(
         settings.get(
             "source_summary_file",
             f"app/output/pipeline_runs/{source_run_id}/{source_run_id}_upload_images.json",
         )
     ).strip()
-    source_summary_file = resolve_path(source_summary_file_setting)
+    source_summary_file = resolve_path_from_root(PROJECT_ROOT, source_summary_file_setting)
     source_summary: dict[str, Any] | None = None
     if source_summary_file.exists():
         source_summary = load_json(source_summary_file)
 
-    run_output_dir = resolve_path(f"app/output/pipeline_runs/{run_id}")
+    run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{run_id}")
     output_base = run_output_dir / f"{run_id}.transcript_batch.json"
     output_file = output_base
     records_file = output_base.with_name(f"{output_base.stem}.records.jsonl")
@@ -406,7 +319,9 @@ def main() -> None:
     if not vertex_location:
         raise ValueError("Missing Vertex location. Set GOOGLE_CLOUD_LOCATION in environment.")
 
-    adc_credentials_file = resolve_adc_credentials_from_env()
+    adc_credentials_file = resolve_adc_credentials_from_env(
+        lambda path_str: resolve_path_from_root(PROJECT_ROOT, path_str)
+    )
     if adc_credentials_file:
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(adc_credentials_file)
 
@@ -529,12 +444,7 @@ def main() -> None:
 
     persist_run(RUN_STATUS_RUNNING)
 
-    def handle_termination_signal(signum: int, frame: Any) -> None:
-        signal_name = signal.Signals(signum).name
-        raise RunTerminatedError(f"Received termination signal: {signal_name}")
-
-    signal.signal(signal.SIGINT, handle_termination_signal)
-    signal.signal(signal.SIGTERM, handle_termination_signal)
+    install_termination_handlers()
 
     queued_records: list[dict[str, Any]] = []
     queued_input_uris: list[str] = []
@@ -607,8 +517,8 @@ def main() -> None:
                 f.write("\n")
         log(f"Wrote local batch input JSONL: {local_batch_input_file}")
 
-        uploaded_input_uri = upload_file_to_gcs(
-            storage_client=storage_client,
+        uploaded_input_uri = upload_file_to_gcs_uri(
+            client=storage_client,
             local_file=local_batch_input_file,
             target_uri=batch_input_uri,
         )

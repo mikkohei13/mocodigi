@@ -12,14 +12,30 @@ Step 2:
 from __future__ import annotations
 
 import argparse
-import json
 import os
-import signal
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from google.cloud import storage
+from utils.files import (
+    append_jsonl,
+    load_json,
+    load_jsonl_rows,
+    resolve_path as resolve_path_from_root,
+    save_json,
+)
+from utils.gcp import resolve_adc_credentials_from_env, upload_file_to_gcs_blob
+from utils.runtime import (
+    RUN_STATUS_FAILED,
+    RUN_STATUS_FINISHED,
+    RUN_STATUS_PARTIAL,
+    RUN_STATUS_RUNNING,
+    RUN_STATUS_TERMINATED,
+    RunTerminatedError,
+    install_termination_handlers,
+    log,
+    now_iso,
+)
 
 try:
     from dotenv import load_dotenv
@@ -31,70 +47,16 @@ except ImportError:
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
 SETTINGS_PATH = SCRIPT_DIR / "settings" / "upload_images_settings.json"
-RUN_STATUS_RUNNING = "running"
-RUN_STATUS_FINISHED = "finished"
-RUN_STATUS_PARTIAL = "partial"
-RUN_STATUS_FAILED = "failed"
-RUN_STATUS_TERMINATED = "terminated"
 SUMMARY_FLUSH_EVERY = 200
-
-
-class RunTerminatedError(Exception):
-    pass
-
-
-def now_iso() -> str:
-    return datetime.now().isoformat()
-
-
-def log(message: str) -> None:
-    print(f"[{now_iso()}] {message}")
-
-
-def load_json(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def save_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
-
-
-def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(payload, ensure_ascii=False))
-        f.write("\n")
 
 
 def load_records_from_jsonl(path: Path) -> dict[str, dict[str, Any]]:
     records_by_folder: dict[str, dict[str, Any]] = {}
-    if not path.exists():
-        return records_by_folder
-    with path.open("r", encoding="utf-8") as f:
-        for line in f:
-            item = line.strip()
-            if not item:
-                continue
-            try:
-                payload = json.loads(item)
-            except json.JSONDecodeError:
-                continue
-            if not isinstance(payload, dict):
-                continue
-            folder_key = str(payload.get("specimen_folder", "")).strip()
-            if folder_key:
-                records_by_folder[folder_key] = payload
+    for payload in load_jsonl_rows(path):
+        folder_key = str(payload.get("specimen_folder", "")).strip()
+        if folder_key:
+            records_by_folder[folder_key] = payload
     return records_by_folder
-
-
-def resolve_path(path_str: str) -> Path:
-    path = Path(path_str)
-    if path.is_absolute():
-        return path
-    return PROJECT_ROOT / path
 
 
 def extract_qname(document_id: str) -> str:
@@ -127,44 +89,6 @@ def validate_settings(raw: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"Missing required settings keys: {missing}")
 
     return settings
-
-
-def resolve_adc_credentials_from_env() -> Path | None:
-    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
-    credentials_root = os.getenv("GOOGLE_CREDENTIALS_PATH", "").strip()
-    if not credentials_path:
-        return None
-
-    candidate = Path(credentials_path)
-    if candidate.is_absolute():
-        if candidate.exists():
-            return candidate
-        if credentials_root:
-            root_path = resolve_path(credentials_root)
-            joined = root_path / credentials_path.lstrip("/")
-            if joined.exists():
-                return joined
-        return candidate
-
-    if credentials_root:
-        root_path = resolve_path(credentials_root)
-        return root_path / credentials_path
-    return resolve_path(credentials_path)
-
-
-def upload_file_to_gcs(
-    client: storage.Client,
-    bucket_name: str,
-    blob_name: str,
-    local_file: Path,
-) -> str:
-    bucket = client.bucket(bucket_name)
-    blob = bucket.blob(blob_name)
-    blob.upload_from_filename(str(local_file))
-    # Ensure the uploaded object is visible before reporting success.
-    if not blob.exists(client=client):
-        raise RuntimeError(f"Uploaded object not found after upload: gs://{bucket_name}/{blob_name}")
-    return f"gs://{bucket_name}/{blob_name}"
 
 
 def build_blob_name(gcs_prefix: str, qname: str, image_name: str) -> str:
@@ -202,10 +126,10 @@ def main() -> None:
     gcs_location = settings["gcs_location"]
     gcs_prefix = settings["gcs_prefix"]
 
-    input_dir = resolve_path(settings["input_dir"])
+    input_dir = resolve_path_from_root(PROJECT_ROOT, settings["input_dir"])
 
     run_id = str(settings["run_id"]).strip()
-    run_output_dir = resolve_path(f"app/output/pipeline_runs/{run_id}")
+    run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{run_id}")
     output_file = run_output_dir / f"{run_id}_upload_images.json"
     records_file = output_file.with_name(f"{output_file.stem}.records.jsonl")
 
@@ -219,7 +143,9 @@ def main() -> None:
             "Missing Google Cloud project. Set GOOGLE_CLOUD_PROJECT in environment."
         )
 
-    adc_credentials_file = resolve_adc_credentials_from_env()
+    adc_credentials_file = resolve_adc_credentials_from_env(
+        lambda path_str: resolve_path_from_root(PROJECT_ROOT, path_str)
+    )
     if adc_credentials_file:
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(adc_credentials_file)
     emulator_host = os.getenv("STORAGE_EMULATOR_HOST", "").strip()
@@ -338,12 +264,7 @@ def main() -> None:
     # Persist immediately so interruptions always leave a run-status record.
     persist_run(RUN_STATUS_RUNNING)
 
-    def handle_termination_signal(signum: int, frame: Any) -> None:
-        signal_name = signal.Signals(signum).name
-        raise RunTerminatedError(f"Received termination signal: {signal_name}")
-
-    signal.signal(signal.SIGINT, handle_termination_signal)
-    signal.signal(signal.SIGTERM, handle_termination_signal)
+    install_termination_handlers()
 
     processed_since_flush = 0
 
@@ -440,7 +361,7 @@ def main() -> None:
             log(f"Uploading {selected_image.name} -> {target_uri}")
 
             try:
-                gcs_uri = upload_file_to_gcs(
+                gcs_uri = upload_file_to_gcs_blob(
                     client=storage_client,
                     bucket_name=gcs_bucket,
                     blob_name=blob_name,

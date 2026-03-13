@@ -2,8 +2,8 @@
   "format_version": "0.1",
   "type": "pipeline_settings",
   "settings": {
-    "run_id": "solanaceae-trial",
-    "source_run_id": "solanaceae-trial",
+    "run_id": "solanaceae-minitrial-cropper",
+    "source_run_id": "solanaceae-minitrial-cropper",
     "gcs_bucket": "mocodigi",
     "gcs_location": "europe_north1",
     "gcs_prefix": "mocodigi-pipeline",
