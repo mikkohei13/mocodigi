@@ -17,6 +17,16 @@ def load_json(path: Path) -> dict[str, Any]:
         return json.load(f)
 
 
+def validate_json_file(path: Path) -> None:
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            json.load(f)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"Invalid JSON file: {path} (line {exc.lineno}, column {exc.colno}): {exc.msg}"
+        ) from exc
+
+
 def save_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:

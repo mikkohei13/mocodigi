@@ -23,6 +23,7 @@ from utils.files import (
     load_jsonl_rows,
     resolve_path as resolve_path_from_root,
     save_json,
+    validate_json_file,
 )
 from utils.gcp import resolve_adc_credentials_from_env, upload_file_to_gcs_blob
 from utils.runtime import (
@@ -120,6 +121,7 @@ def main() -> None:
     if not SETTINGS_PATH.exists():
         raise FileNotFoundError(f"Settings file not found: {SETTINGS_PATH}")
 
+    validate_json_file(SETTINGS_PATH)
     raw_settings_payload = load_json(SETTINGS_PATH)
     settings = validate_settings(raw_settings_payload)
     gcs_bucket = settings["gcs_bucket"]
@@ -130,8 +132,8 @@ def main() -> None:
 
     run_id = str(settings["run_id"]).strip()
     run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{run_id}")
-    output_file = run_output_dir / f"{run_id}_upload_images.json"
-    records_file = output_file.with_name(f"{output_file.stem}.records.jsonl")
+    output_file = run_output_dir / "upload_images.json"
+    records_file = output_file.with_name("upload_images.records.jsonl")
 
     if not input_dir.exists() or not input_dir.is_dir():
         raise NotADirectoryError(f"Input directory does not exist: {input_dir}")
@@ -242,9 +244,6 @@ def main() -> None:
             "input_dir": str(input_dir),
             "gcs_bucket": gcs_bucket,
             "gcs_prefix": gcs_prefix,
-            "run_output_dir": str(run_output_dir),
-            "output_file": str(output_file),
-            "records_file": str(records_file),
         },
         "data": {
             "counts": build_counts(),

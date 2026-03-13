@@ -27,6 +27,7 @@ from utils.files import (
     load_jsonl_rows,
     resolve_path as resolve_path_from_root,
     save_json,
+    validate_json_file,
 )
 from utils.gcp import parse_gs_uri, resolve_adc_credentials_from_env, upload_file_to_gcs_uri
 from utils.runtime import (
@@ -276,6 +277,7 @@ def main() -> None:
     if not SETTINGS_PATH.exists():
         raise FileNotFoundError(f"Settings file not found: {SETTINGS_PATH}")
 
+    validate_json_file(SETTINGS_PATH)
     raw_settings_payload = load_json(SETTINGS_PATH)
     settings = validate_settings(raw_settings_payload)
     run_id = str(settings["run_id"]).strip()
@@ -290,14 +292,14 @@ def main() -> None:
     source_records_file_setting = str(
         settings.get(
             "source_records_file",
-            f"app/output/pipeline_runs/{source_run_id}/{source_run_id}.records.jsonl",
+            f"app/output/pipeline_runs/{source_run_id}/upload_images.records.jsonl",
         )
     ).strip()
     source_records_file = resolve_path_from_root(PROJECT_ROOT, source_records_file_setting)
     source_summary_file_setting = str(
         settings.get(
             "source_summary_file",
-            f"app/output/pipeline_runs/{source_run_id}/{source_run_id}_upload_images.json",
+            f"app/output/pipeline_runs/{source_run_id}/upload_images.json",
         )
     ).strip()
     source_summary_file = resolve_path_from_root(PROJECT_ROOT, source_summary_file_setting)
@@ -306,10 +308,10 @@ def main() -> None:
         source_summary = load_json(source_summary_file)
 
     run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{run_id}")
-    output_base = run_output_dir / f"{run_id}.transcript_batch.json"
+    output_base = run_output_dir / "transcript_batch.json"
     output_file = output_base
-    records_file = output_base.with_name(f"{output_base.stem}.records.jsonl")
-    local_batch_input_file = output_base.with_name(f"{output_base.stem}.input.jsonl")
+    records_file = output_base.with_name("transcript_batch.records.jsonl")
+    local_batch_input_file = output_base.with_name("transcript_batch.input.jsonl")
 
     batch_input_uri = f"gs://{gcs_bucket}/{gcs_prefix}/batch_jobs/{run_id}/requests.jsonl"
     batch_output_uri_prefix = f"gs://{gcs_bucket}/{gcs_prefix}/batch_jobs/{run_id}/output"
@@ -421,10 +423,6 @@ def main() -> None:
             "temperature": temperature,
             "batch_input_uri": batch_input_uri,
             "batch_output_uri_prefix": batch_output_uri_prefix,
-            "run_output_dir": str(run_output_dir),
-            "output_file": str(output_file),
-            "records_file": str(records_file),
-            "local_batch_input_file": str(local_batch_input_file),
         },
         "data": {
             "counts": build_counts(),

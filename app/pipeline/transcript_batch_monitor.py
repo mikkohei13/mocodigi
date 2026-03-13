@@ -24,6 +24,7 @@ from utils.files import (
     load_jsonl_rows,
     resolve_path as resolve_path_from_root,
     save_json,
+    validate_json_file,
 )
 from utils.gcp import parse_gs_uri, resolve_adc_credentials_from_env
 from utils.runtime import (
@@ -71,7 +72,6 @@ def validate_settings(raw: dict[str, Any]) -> dict[str, Any]:
     required = [
         "run_id",
         "source_run_id",
-        "download_dir",
     ]
     missing = [key for key in required if settings.get(key) in (None, "")]
     if missing:
@@ -112,25 +112,25 @@ def main() -> None:
     if not SETTINGS_PATH.exists():
         raise FileNotFoundError(f"Settings file not found: {SETTINGS_PATH}")
 
+    validate_json_file(SETTINGS_PATH)
     raw_settings_payload = load_json(SETTINGS_PATH)
     settings = validate_settings(raw_settings_payload)
 
     run_id = str(settings["run_id"]).strip()
     source_run_id = str(settings["source_run_id"]).strip()
-    download_dir = resolve_path_from_root(PROJECT_ROOT, str(settings["download_dir"]).strip())
     source_summary_file = resolve_path_from_root(
         PROJECT_ROOT,
         str(
             settings.get(
                 "source_summary_file",
-                f"app/output/pipeline_runs/{source_run_id}/{source_run_id}.transcript_batch.json",
+                f"app/output/pipeline_runs/{source_run_id}/transcript_batch.json",
             )
         ).strip()
     )
 
     run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{run_id}")
-    output_file = run_output_dir / f"{run_id}.transcript_batch_monitor.json"
-    records_file = output_file.with_name(f"{output_file.stem}.records.jsonl")
+    output_file = run_output_dir / "transcript_batch_monitor.json"
+    records_file = output_file.with_name("transcript_batch_monitor.records.jsonl")
     download_root = run_output_dir / "transcript_batch_responses"
 
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "").strip()
@@ -232,11 +232,6 @@ def main() -> None:
             "vertex_location": vertex_location,
             "batch_job_name": batch_job_name,
             "batch_output_uri_prefix": batch_output_uri_prefix,
-            "download_dir": str(download_dir),
-            "run_output_dir": str(run_output_dir),
-            "download_root": str(download_root),
-            "output_file": str(output_file),
-            "records_file": str(records_file),
             "poll_seconds": args.poll_seconds,
             "timeout_hours": args.timeout_hours,
         },
