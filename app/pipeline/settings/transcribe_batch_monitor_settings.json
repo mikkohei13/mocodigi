@@ -1,8 +1,0 @@
-{
-  "format_version": "0.1",
-  "type": "pipeline_settings",
-  "settings": {
-    "run_id": "solanaceae-minitrial-cropped",
-    "source_run_id": "solanaceae-minitrial-cropped"
-  }
-}
