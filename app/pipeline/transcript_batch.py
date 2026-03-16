@@ -54,6 +54,11 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
 SETTINGS_PATH = SCRIPT_DIR / "settings" / "transcribe_batch_settings.json"
 SUMMARY_FLUSH_EVERY = 200
+SUPPORTED_BATCH_MODELS = {
+    "gemini-3.1-pro-preview",
+    "gemini-3-flash-preview",
+    "gemini-2.5-pro",
+}
 
 
 def resolve_project_id(
@@ -211,11 +216,22 @@ def latest_step1_records_by_folder(records: list[dict[str, Any]]) -> dict[str, d
 def build_batch_request_row(
     *,
     gcs_uri: str,
+    document_long_id: str,
+    model_name: str,
     system_message: str,
     user_prompt: str,
     temperature: float,
 ) -> dict[str, Any]:
+    generation_config: dict[str, Any] = {"temperature": temperature}
+    if model_name == "gemini-3.1-pro-preview":
+        generation_config["thinkingConfig"] = {"thinkingLevel": "LOW"}
+    elif model_name == "gemini-3-flash-preview":
+        generation_config["thinkingConfig"] = {"thinkingLevel": "MINIMAL"}
+    elif model_name == "gemini-2.5-pro":
+        generation_config["thinkingConfig"] = {"thinkingBudget": 128}
+
     return {
+        "document_long_id": document_long_id,
         "request": {
             "systemInstruction": {"parts": [{"text": system_message}]},
             "contents": [
@@ -227,9 +243,7 @@ def build_batch_request_row(
                     ],
                 }
             ],
-            "generationConfig": {
-                "temperature": temperature,
-            },
+            "generationConfig": generation_config,
         }
     }
 
@@ -250,6 +264,13 @@ def validate_settings(raw: dict[str, Any]) -> dict[str, Any]:
     missing = [key for key in required if settings.get(key) in (None, "")]
     if missing:
         raise ValueError(f"Missing required settings keys: {missing}")
+
+    model_name = str(settings.get("model", "")).strip()
+    if model_name not in SUPPORTED_BATCH_MODELS:
+        raise ValueError(
+            "Unsupported settings.model. Use one of: "
+            + ", ".join(sorted(SUPPORTED_BATCH_MODELS))
+        )
     return settings
 
 
@@ -459,6 +480,7 @@ def main() -> None:
             record = {
                 "specimen_folder": folder_key,
                 "qname": specimen.get("qname"),
+                "document_long_id": specimen.get("document_id_long"),
                 "gcs_uri": specimen.get("gcs_uri"),
                 "status": "skipped",
                 "error": None,
@@ -467,6 +489,7 @@ def main() -> None:
 
             status = str(specimen.get("status", "")).strip()
             gcs_uri = str(specimen.get("gcs_uri", "")).strip()
+            document_long_id = str(specimen.get("document_id_long", "")).strip()
 
             if status != "uploaded":
                 record["error"] = f"Source record status is '{status or 'missing'}', expected 'uploaded'."
@@ -490,6 +513,8 @@ def main() -> None:
 
             batch_row = build_batch_request_row(
                 gcs_uri=gcs_uri,
+                document_long_id=document_long_id,
+                model_name=model_name,
                 system_message=system_message,
                 user_prompt=user_prompt,
                 temperature=temperature,

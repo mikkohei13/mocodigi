@@ -1,6 +1,6 @@
 # Pipeline Overview
 
-This specimen digitization pipeline has three steps/scripts in `app/pipeline`. Each step is settings-driven and writes durable run artifacts to `app/output/pipeline_runs/<run_id>/`.
+This specimen digitization pipeline has four steps/scripts in `app/pipeline`. Each step is settings-driven and writes durable run artifacts to `app/output/pipeline_runs/<run_id>/`.
 
 ## Step Contracts
 
@@ -44,6 +44,15 @@ This specimen digitization pipeline has three steps/scripts in `app/pipeline`. E
   - raw transcription response files: `transcript_batch_responses/<vertex-output-subpath>/...` (for example `prediction-*/predictions.jsonl`)
 - **Event model in records:** `poll`, `download`, `timeout`
 
+### Step 4: `transcript_report.py`
+
+- Reads step-3 summary output, loads raw batch prediction rows from downloaded `predictions.jsonl` files, and produces a human-readable transcript report.
+- **Settings:** `app/pipeline/settings/transcript_report_settings.json`
+- **Input contract:** step-3 summary from `source_run_id` (`transcript_batch_monitor.json`) with `data.responses_folder`
+- **Response parsing:** transcript text from `response.candidates[].content.parts[].text`; specimen id derived from `request.contents[].parts[].fileData.fileUri`
+- **Output contract:**
+  - HTML report: `transcript_report.html` (table with columns `specimen id` and `transcript`, sorted by specimen id)
+
 ## Run State and Persistence Model
 
 - Common run statuses (shared runtime contract): `running`, `finished`, `partial`, `failed`, `terminated`.
@@ -71,3 +80,4 @@ This specimen digitization pipeline has three steps/scripts in `app/pipeline`. E
   - `python3 app/pipeline/upload_images.py [--limit N]`
   - `python3 app/pipeline/transcript_batch.py [--limit N]`
   - `python3 app/pipeline/transcript_batch_monitor.py [--poll-seconds S] [--timeout-hours H]`
+- `python3 app/pipeline/transcript_report.py`

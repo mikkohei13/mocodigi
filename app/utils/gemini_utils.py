@@ -29,13 +29,26 @@ def get_gemini_client(use_vertex_ai: bool = False) -> genai.Client:
     return genai.Client(api_key=api_key)
 
 
+def _build_thinking_config(model_name: str) -> types.ThinkingConfig | None:
+    """Return minimal-thinking config for supported Gemini models."""
+    normalized_model = model_name.strip()
+    if normalized_model == "gemini-3-flash-preview":
+        return types.ThinkingConfig(thinking_level=types.ThinkingLevel.MINIMAL)
+    if normalized_model == "gemini-3.1-pro-preview":
+        return types.ThinkingConfig(thinking_level=types.ThinkingLevel.LOW)
+    if normalized_model == "gemini-2.5-pro":
+        return types.ThinkingConfig(thinking_budget=128)
+    if normalized_model.startswith("gemini-3"):
+        return types.ThinkingConfig(thinking_level=types.ThinkingLevel.LOW)
+    return None
+
+
 def generate_content(
     client: genai.Client,
     content: types.Part | str,
     model_name: str,
     system_prompt: str,
     temperature: float = 0.0,
-    thinking_level: types.ThinkingLevel = types.ThinkingLevel.LOW,
     max_chars: int = 200
 ) -> str:
     """
@@ -47,20 +60,23 @@ def generate_content(
         model_name: Name of the Gemini model to use
         system_prompt: System instruction prompt
         temperature: Temperature for generation (default: 0.0)
-        thinking_level: Thinking level for Gemini 3 models (default: LOW)
         max_chars: Maximum characters to accumulate before breaking
         
     Returns:
         Response text from the API (may be truncated if max_chars exceeded)
     """
+    config_kwargs: dict[str, Any] = {
+        "temperature": temperature,
+        "system_instruction": system_prompt,
+    }
+    thinking_config = _build_thinking_config(model_name)
+    if thinking_config is not None:
+        config_kwargs["thinking_config"] = thinking_config
+
     response_stream = client.models.generate_content_stream(
         model=model_name,
         contents=[content],
-        config=types.GenerateContentConfig(
-            temperature=temperature,
-            system_instruction=system_prompt,
-            thinking_config=types.ThinkingConfig(thinking_level=thinking_level)
-        )
+        config=types.GenerateContentConfig(**config_kwargs),
     )
     
     collected_text = ""
@@ -87,7 +103,6 @@ def generate_content_with_stream_capture(
     model_name: str,
     system_prompt: str,
     temperature: float = 0.0,
-    thinking_level: types.ThinkingLevel = types.ThinkingLevel.LOW,
     max_chars: int = 200
 ) -> dict:
     """
@@ -101,14 +116,18 @@ def generate_content_with_stream_capture(
             - max_chars: configured max char limit
             - chunks: serialized stream chunks received
     """
+    config_kwargs: dict[str, Any] = {
+        "temperature": temperature,
+        "system_instruction": system_prompt,
+    }
+    thinking_config = _build_thinking_config(model_name)
+    if thinking_config is not None:
+        config_kwargs["thinking_config"] = thinking_config
+
     response_stream = client.models.generate_content_stream(
         model=model_name,
         contents=[content],
-        config=types.GenerateContentConfig(
-            temperature=temperature,
-            system_instruction=system_prompt,
-            thinking_config=types.ThinkingConfig(thinking_level=thinking_level)
-        )
+        config=types.GenerateContentConfig(**config_kwargs),
     )
 
     full_text_received = ""
@@ -139,7 +158,6 @@ def generate_transcription(
     model_name: str,
     system_prompt: str,
     temperature: float = 0.0,
-    thinking_level: types.ThinkingLevel = types.ThinkingLevel.LOW,
     max_chars: int = 200
 ) -> str:
     """
@@ -151,7 +169,6 @@ def generate_transcription(
         model_name: Name of the Gemini model to use
         system_prompt: System instruction prompt
         temperature: Temperature for generation (default: 0.0)
-        thinking_level: Thinking level for Gemini 3 models (default: LOW)
         max_chars: Maximum characters to accumulate before breaking (default: 200)
         
     Returns:
@@ -163,7 +180,6 @@ def generate_transcription(
         model_name=model_name,
         system_prompt=system_prompt,
         temperature=temperature,
-        thinking_level=thinking_level,
         max_chars=max_chars
     )
 
@@ -174,7 +190,6 @@ def generate_transcription_with_stream_capture(
     model_name: str,
     system_prompt: str,
     temperature: float = 0.0,
-    thinking_level: types.ThinkingLevel = types.ThinkingLevel.LOW,
     max_chars: int = 200
 ) -> dict:
     """
@@ -186,7 +201,6 @@ def generate_transcription_with_stream_capture(
         model_name=model_name,
         system_prompt=system_prompt,
         temperature=temperature,
-        thinking_level=thinking_level,
         max_chars=max_chars
     )
 
@@ -197,7 +211,6 @@ def generate_consolidation(
     model_name: str,
     system_prompt: str,
     temperature: float = 0.0,
-    thinking_level: types.ThinkingLevel = types.ThinkingLevel.LOW,
     max_chars: int = 200
 ) -> str:
     """
@@ -209,7 +222,6 @@ def generate_consolidation(
         model_name: Name of the Gemini model to use
         system_prompt: System instruction prompt
         temperature: Temperature for generation (default: 0.0)
-        thinking_level: Thinking level for Gemini 3 models (default: LOW)
         max_chars: Maximum characters to accumulate before breaking (default: 200)
         
     Returns:
@@ -221,7 +233,6 @@ def generate_consolidation(
         model_name=model_name,
         system_prompt=system_prompt,
         temperature=temperature,
-        thinking_level=thinking_level,
         max_chars=max_chars
     )
 

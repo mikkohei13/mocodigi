@@ -132,6 +132,7 @@ def main() -> None:
     output_file = run_output_dir / "transcript_batch_monitor.json"
     records_file = output_file.with_name("transcript_batch_monitor.records.jsonl")
     download_root = run_output_dir / "transcript_batch_responses"
+    download_root_relative = str(download_root.relative_to(PROJECT_ROOT))
 
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "").strip()
     if not project_id:
@@ -238,6 +239,7 @@ def main() -> None:
         "data": {
             "counts": build_counts(),
             "records_logged": len(records_events),
+            "responses_folder": download_root_relative,
             "job_state": None,
             "job_payload": None,
         },
