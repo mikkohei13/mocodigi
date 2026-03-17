@@ -166,17 +166,8 @@ Follow these strict data extraction rules:
 - Values only: Strip all field labels, prefixes, or keywords (e.g., remove "Leg.", "Coll:", or "No.") from the extracted value.
 - Verbatim text unless otherwise specified: Preserve original spelling, language, abbreviations, and punctuation. You may correct obvious optical character recognition (OCR) artifacts (e.g., "l984" -> "1984"), but do not change historical spellings of places or names. Deviate from verbatim text only when a schema field description explicitly requires interpretation.
 - Institution vs. geography: Carefully distinguish between the institution/herbarium housing the specimen and the actual geographic location where the collection event occurred.
-- Missing data: If information for a field is not present in the text, return null. Do not hallucinate or infer missing data."""
+- Missing data: If information for a field is not present in the text, return null. Do not infer missing data."""
 
-# Configuration (hardcoded)
-
-folder_names = [
-    "../images-solanaceae-trial/C.319050",
-]
-
-
-# Or every subfolder in a folder
-folder_names = get_subfolders("../images-solanaceae-trial")
 
 RUN_VERSION = "solanaceae2"
 
@@ -290,4 +281,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 

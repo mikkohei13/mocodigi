@@ -59,15 +59,44 @@ This specimen digitization pipeline has four steps/scripts in `app/pipeline`. Ea
 
 ### Step 5: Preprocess transcriptions by extracting data using regular algorithms - `preprocess_structure.py`
 
-- 
+- Reads downloaded batch prediction rows from step-3 output, extracts transcript text, and applies deterministic regex-based preprocessing/cleanup before structurization.
+- **Settings:** `app/pipeline/settings/preprocess_structure_settings.json`
+- **Input contract:** step-3 summary from `source_run_id` (`transcript_batch_monitor.json`) with `data.responses_folder`; expects one or more `predictions.jsonl` files under that folder.
+- **Preprocess behavior:** keeps source metadata (`document_long_id`, `qname`, source file/index), flags multi-specimen transcripts, and extracts/removes known label patterns (for example QUADR., Luomus http-id + digitization date, Helsinki herbarium stamps/H-number).
+- **Output contract:**
+  - log file: `preprocess_structure.json`
+  - process event log: `preprocess_structure.records.jsonl`
+  - preprocessed rows for next step: `preprocess_structure.jsonl`
+- **Record status model:** `success`, `failed` (event: `process`)
 
-### Step 6: Submit data to the Vertex Gemini batch job for structurization
+### Step 6: Submit data to the Vertex Gemini batch job for structurization - `structured_output_batch.py`
 
-- To be done later.
+- Reads step-5 output (`preprocess_structure.json`) and resolves the preprocessed transcript JSONL from `data.output_jsonl`.
+- Keeps one latest record per specimen key, builds a text to structured-data batch request JSONL, uploads it, and creates a Vertex batch job.
+- **Settings:** `app/pipeline/settings/structured_output_settings.json`
+- **Input contract:** step-5 summary from `source_run_id` (default `preprocess_structure.json`) with `data.output_jsonl` pointing to step-5 rows.
+- **Selection rule:** only records where `data.preprocessed_transcript` exists and is non-empty.
+- **Batch I/O:**
+  - input JSONL uploaded to `gs://<bucket>/<prefix>/batch_jobs/<run_id>/structured_requests.jsonl`
+  - output prefix set to `gs://<bucket>/<prefix>/batch_jobs/<run_id>/structured_output`
+- **Output contract:**
+  - log file: `structured_output_batch.json` (includes `data.batch_job`)
+  - structured-output jobs submitted: `structured_output_batch.records.jsonl`
+  - local batch payload copy: `structured_output_batch.input.jsonl`
+- **Record status model:** `eligible`, `queued`, `skipped`, `failed`
 
-### Step 7: Monitor Vertex Gemini batch job and download responses
+### Step 7: Monitor Vertex Gemini batch job and download responses - `structured_output_batch_monitor.py`
 
-- To be done later.
+- Reads batch metadata from step-6 summary, polls until a terminal state, and downloads raw structured-output responses when the job succeeds.
+- **Settings:** `app/pipeline/settings/structured_output_batch_monitor_settings.json`
+- **Input contract:** step-6 summary with `data.batch_job.name` and `settings.batch_output_uri_prefix`
+- **Polling behavior:** poll every `--poll-seconds` until terminal state or `--timeout-hours`
+- **Download behavior:** on success, download all blobs under batch output prefix to `structured_output_batch_responses/`
+- **Output contract:**
+  - log file: `structured_output_batch_monitor.json`
+  - polling status log: `structured_output_batch_monitor.records.jsonl`
+  - raw structured-output response files: `structured_output_batch_responses/<vertex-output-subpath>/...` (for example `prediction-*/predictions.jsonl`)
+- **Event model in records:** `poll`, `download`, `timeout`
 
 ### Step 8: Do quality control analysis and report
 
