@@ -91,13 +91,33 @@ def get_response_pretty_json(row: dict[str, Any]) -> str:
     return json.dumps(response_json, ensure_ascii=False, indent=2)
 
 
-def make_html(rows: list[dict[str, Any]], pipeline_run_id: str) -> str:
+def build_preprocess_details_map(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    details_by_document: dict[str, Any] = {}
+    for row in rows:
+        document_long_id = row.get("document_long_id")
+        if not isinstance(document_long_id, str) or not document_long_id:
+            continue
+        data = row.get("data", {})
+        if not isinstance(data, dict):
+            continue
+        preprocess_details = data.get("preprocess_details", {})
+        if preprocess_details is None:
+            preprocess_details = {}
+        details_by_document[document_long_id] = preprocess_details
+    return details_by_document
+
+
+def make_html(
+    rows: list[dict[str, Any]], preprocess_details_by_document: dict[str, Any], pipeline_run_id: str
+) -> str:
     table_rows: list[str] = []
 
     for row in rows:
         document_long_id = str(row.get("document_long_id", ""))
         prompt_text = get_prompt_text(row)
         response_pretty_json = get_response_pretty_json(row)
+        preprocess_details = preprocess_details_by_document.get(document_long_id, {})
+        preprocess_details_pretty_json = json.dumps(preprocess_details, ensure_ascii=False, indent=2)
 
         link_html = ""
         if document_long_id:
@@ -110,6 +130,7 @@ def make_html(rows: list[dict[str, Any]], pipeline_run_id: str) -> str:
             f"<td>{link_html}</td>"
             f"<td><pre>{html.escape(prompt_text)}</pre></td>"
             f"<td><pre>{html.escape(response_pretty_json)}</pre></td>"
+            f"<td><pre>{html.escape(preprocess_details_pretty_json)}</pre></td>"
             "</tr>"
         )
 
@@ -160,6 +181,7 @@ def make_html(rows: list[dict[str, Any]], pipeline_run_id: str) -> str:
         <th>document_long_id</th>
         <th>prompt</th>
         <th>response</th>
+        <th>preprocess_details</th>
       </tr>
     </thead>
     <tbody>
@@ -175,12 +197,15 @@ def main() -> None:
     app_dir = Path(__file__).resolve().parent.parent
     run_dir = app_dir / "output" / "pipeline_runs" / pipeline_run_id
     responses_dir = run_dir / "structured_output_batch_responses"
+    preprocess_file = run_dir / "preprocess_structure.jsonl"
     output_file = run_dir / "structured_report.html"
 
     if not run_dir.exists() or not run_dir.is_dir():
         raise FileNotFoundError(f"Pipeline run directory not found: {run_dir}")
     if not responses_dir.exists() or not responses_dir.is_dir():
         raise FileNotFoundError(f"Responses directory not found: {responses_dir}")
+    if not preprocess_file.exists():
+        raise FileNotFoundError(f"Preprocess JSONL not found: {preprocess_file}")
 
     input_files = sorted(responses_dir.rglob("predictions.jsonl"))
     if not input_files:
@@ -190,7 +215,12 @@ def main() -> None:
     for input_file in input_files:
         rows.extend(read_jsonl_rows(input_file))
 
-    output_file.write_text(make_html(rows, pipeline_run_id), encoding="utf-8")
+    preprocess_rows = read_jsonl_rows(preprocess_file)
+    preprocess_details_by_document = build_preprocess_details_map(preprocess_rows)
+    output_file.write_text(
+        make_html(rows, preprocess_details_by_document, pipeline_run_id),
+        encoding="utf-8",
+    )
     print(f"Wrote HTML report: {output_file}")
 
 

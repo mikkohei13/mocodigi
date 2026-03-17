@@ -2,6 +2,15 @@
 
 This specimen digitization pipeline has four steps/scripts in `app/pipeline`. Each step is settings-driven and writes durable run artifacts to `app/output/pipeline_runs/<run_id>/`.
 
+## Todo
+
+- See todo's below
+- Add sample settings files to Git
+- Harmonize and clarify pipeline artifact naming and contracts
+- Make it easier to create settings: not all should require a source_run_id to be set manually
+- Overall pipeline management, with Luigi?
+- Clean up scripts; keep report scripts
+
 ## Step Contracts
 
 ### Step 0: Download images from FinBIF API
@@ -68,6 +77,9 @@ This specimen digitization pipeline has four steps/scripts in `app/pipeline`. Ea
   - process event log: `preprocess_structure.records.jsonl`
   - preprocessed rows for next step: `preprocess_structure.jsonl`
 - **Record status model:** `success`, `failed` (event: `process`)
+- Todo:
+  - Compare that H-number and http-uri match with the original data
+  - Manually check duplicate http-uri specimens?
 
 ### Step 6: Submit data to the Vertex Gemini batch job for structurization - `structured_output_batch.py`
 
@@ -105,6 +117,12 @@ This specimen digitization pipeline has four steps/scripts in `app/pipeline`. Ea
 ### Step 9: Export data to Kotka format
 
 - To be done later.
+
+### Step 10: Clean up
+- Todo:
+  - Delete uploaded images from GCS
+  - Delete uploaded prompt data from GCS
+  - Delete batch job responses from GCS
 
 
 ## Run State and Persistence Model
