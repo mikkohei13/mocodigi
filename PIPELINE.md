@@ -4,7 +4,11 @@ This specimen digitization pipeline has four steps/scripts in `app/pipeline`. Ea
 
 ## Step Contracts
 
-### Step 1: `upload_images.py`
+### Step 0: Download images from FinBIF API
+
+- To be done later.
+
+### Step 1: Upload images to Google Cloud Storage (GCS) - `upload_images.py`
 
 - Scans specimen folders, and for each, validates minimum inputs (`document.json` + at least one `.jpg`), and uploads the selected image to GCS.
 - **Settings:** `app/pipeline/settings/upload_images_settings.json`
@@ -17,7 +21,7 @@ This specimen digitization pipeline has four steps/scripts in `app/pipeline`. Ea
   - uploaded URI shape: `gs://<bucket>/<prefix>/<qname>/<image_name>`
 - **Record status model:** `uploaded`, `skipped`, `failed`
 
-### Step 2: `transcript_batch.py`
+### Step 2: Create Vertex Gemini batch job - `transcript_batch.py`
 
 - Reads step-1 records, keeps only uploaded entries with valid `gs://` URIs, builds a image to text transcription batch request JSONL, uploads it, and creates a Vertex batch job.
 - **Settings:** `app/pipeline/settings/transcribe_batch_settings.json`
@@ -31,7 +35,7 @@ This specimen digitization pipeline has four steps/scripts in `app/pipeline`. Ea
   - transcription jobs submitted: `transcript_batch.records.jsonl`
 - **Record status model:** `eligible`, `queued`, `skipped`, `failed`
 
-### Step 3: `transcript_batch_monitor.py`
+### Step 3: Monitor Vertex Gemini batch job and download responses - `transcript_batch_monitor.py`
 
 - Reads batch metadata from step-2 summary, polls until a terminal state, and downloads raw batch transcriptions when the job succeeds.
 - **Settings:** `app/pipeline/settings/transcribe_batch_monitor_settings.json`
@@ -44,7 +48,7 @@ This specimen digitization pipeline has four steps/scripts in `app/pipeline`. Ea
   - raw transcription response files: `transcript_batch_responses/<vertex-output-subpath>/...` (for example `prediction-*/predictions.jsonl`)
 - **Event model in records:** `poll`, `download`, `timeout`
 
-### Step 4: `transcript_report.py`
+### Step 4: Generate transcript report for reviewing transcriptions - `transcript_report.py`
 
 - Reads step-3 summary output, loads raw batch prediction rows from downloaded `predictions.jsonl` files, and produces a human-readable transcript report.
 - **Settings:** `app/pipeline/settings/transcript_report_settings.json`
@@ -52,6 +56,27 @@ This specimen digitization pipeline has four steps/scripts in `app/pipeline`. Ea
 - **Response parsing:** transcript text from `response.candidates[].content.parts[].text`; specimen id derived from `request.contents[].parts[].fileData.fileUri`
 - **Output contract:**
   - HTML report: `transcript_report.html` (table with columns `specimen id` and `transcript`, sorted by specimen id)
+
+### Step 5: Preprocess transcriptions by extracting data using regular algorithms - `preprocess_structure.py`
+
+- 
+
+### Step 6: Submit data to the Vertex Gemini batch job for structurization
+
+- To be done later.
+
+### Step 7: Monitor Vertex Gemini batch job and download responses
+
+- To be done later.
+
+### Step 8: Do quality control analysis and report
+
+- To be done later.
+
+### Step 9: Export data to Kotka format
+
+- To be done later.
+
 
 ## Run State and Persistence Model
 
