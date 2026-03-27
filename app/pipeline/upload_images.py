@@ -170,7 +170,38 @@ def main() -> None:
         log(f"STORAGE_EMULATOR_HOST is set: {emulator_host}")
 
     storage_client = storage.Client(project=project_id)
-    all_specimen_folders = sorted([p for p in input_dir.iterdir() if p.is_dir()], key=lambda p: p.name)
+
+    def discover_specimen_folders(root: Path) -> list[Path]:
+        """
+        Support both directory layouts:
+        - flat: <root>/<qname>/<document.json> (or <root>/<qname>/document.json where qname folder is the specimen folder)
+        - nested: <root>/<lastChar>/<qname>/document.json
+        """
+
+        candidates: set[Path] = set()
+        if not root.exists():
+            return []
+
+        # Depth 1: root/<specimen_folder>
+        for p in root.iterdir():
+            if not p.is_dir():
+                continue
+            if (p / "document.json").exists():
+                candidates.add(p)
+
+        # Depth 2: root/<lastChar>/<qname>
+        for last_char in root.iterdir():
+            if not last_char.is_dir():
+                continue
+            for qname_dir in last_char.iterdir():
+                if not qname_dir.is_dir():
+                    continue
+                if (qname_dir / "document.json").exists():
+                    candidates.add(qname_dir)
+
+        return sorted(candidates, key=lambda p: str(p))
+
+    all_specimen_folders = discover_specimen_folders(input_dir)
     discovered_folders = len(all_specimen_folders)
 
     log(f"Found {discovered_folders} specimen folders")

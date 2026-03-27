@@ -15,7 +15,15 @@ This specimen digitization pipeline has four steps/scripts in `app/pipeline`. Ea
 
 ### Step 0: Download images from FinBIF API
 
-- To be done later.
+- Downloads the first available `IMAGE` media belonging to each FinBIF document.
+- **Settings:** `app/pipeline/settings/download_images_settings.json`
+- **Input contract:** user provides a `search_url` in the settings (a `laji.fi/observation/images?...` URL).
+- **How filtering works:** Step 0 parses query parameters from `search_url` and uses them in FinBIF `/warehouse/query/unit/list` to discover matching `document.documentId` values.
+- **On-disk output contract:**
+  - per document output folder: `<image_root>/<last_char_of_document_qname>/<qname>/`
+  - `document.json` is saved into that folder (full FinBIF document JSON payload)
+  - one downloaded image is saved into that folder as a `.jpg`
+- **Record status model:** `downloaded`, `skipped`, `failed`
 
 ### Step 1: Upload images to Google Cloud Storage (GCS) - `upload_images.py`
 
@@ -150,6 +158,7 @@ This specimen digitization pipeline has four steps/scripts in `app/pipeline`. Ea
   - ADC via `GOOGLE_APPLICATION_CREDENTIALS` (or equivalent default auth)
 - Commands:
   - `python3 app/pipeline/upload_images.py [--limit N]`
+  - `python3 app/pipeline/download_images.py [--limit N]`
   - `python3 app/pipeline/transcript_batch.py [--limit N]`
   - `python3 app/pipeline/transcript_batch_monitor.py [--poll-seconds S] [--timeout-hours H]`
 - `python3 app/pipeline/transcript_report.py`
