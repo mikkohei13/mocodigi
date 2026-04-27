@@ -20,8 +20,8 @@ from utils.files import (
     load_jsonl_rows,
     resolve_path as resolve_path_from_root,
     save_json,
-    validate_json_file,
 )
+from utils.pipeline_config import archive_pipeline_settings, load_step_settings
 from utils.runtime import (
     RUN_STATUS_FAILED,
     RUN_STATUS_FINISHED,
@@ -38,8 +38,7 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent
 SETTINGS_PATH = SCRIPT_DIR / "settings" / "preprocess_structure_settings.json"
 
 
-def validate_settings(raw: dict[str, Any]) -> dict[str, Any]:
-    settings = raw.get("settings", {})
+def validate_settings(settings: dict[str, Any]) -> dict[str, Any]:
     required = ["run_id", "source_run_id"]
     missing = [key for key in required if settings.get(key) in (None, "")]
     if missing:
@@ -48,6 +47,10 @@ def validate_settings(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def extract_qname(payload: dict[str, Any]) -> str:
+    direct_qname = str(payload.get("qname", "")).strip()
+    if direct_qname:
+        return direct_qname
+
     contents = payload.get("request", {}).get("contents", [])
     if not isinstance(contents, list):
         return ""
@@ -70,6 +73,42 @@ def extract_qname(payload: dict[str, Any]) -> str:
             if len(uri_parts) >= 4:
                 return uri_parts[-2]
     return ""
+
+
+def extract_image_metadata(payload: dict[str, Any]) -> tuple[str, int | None]:
+    image_filename = str(payload.get("image_filename", "")).strip()
+    image_index_raw = payload.get("image_index")
+    image_index: int | None = None
+    if image_index_raw is not None:
+        try:
+            image_index = int(image_index_raw)
+        except (TypeError, ValueError):
+            image_index = None
+
+    if image_filename:
+        return image_filename, image_index
+
+    contents = payload.get("request", {}).get("contents", [])
+    if not isinstance(contents, list):
+        return "", image_index
+    for content in contents:
+        if not isinstance(content, dict):
+            continue
+        parts = content.get("parts", [])
+        if not isinstance(parts, list):
+            continue
+        for part in parts:
+            if not isinstance(part, dict):
+                continue
+            file_data = part.get("fileData")
+            if not isinstance(file_data, dict):
+                continue
+            file_uri = str(file_data.get("fileUri", "")).strip()
+            if not file_uri.startswith("gs://"):
+                continue
+            image_filename = file_uri.rsplit("/", 1)[-1].strip()
+            return image_filename, image_index
+    return "", image_index
 
 
 def extract_transcript(payload: dict[str, Any]) -> str:
@@ -203,12 +242,8 @@ def to_project_relative(path: Path) -> str:
 def main() -> None:
     started_at_now = now_iso()
 
-    if not SETTINGS_PATH.exists():
-        raise FileNotFoundError(f"Settings file not found: {SETTINGS_PATH}")
-
-    validate_json_file(SETTINGS_PATH)
-    raw_settings_payload = load_json(SETTINGS_PATH)
-    settings = validate_settings(raw_settings_payload)
+    merged_settings, _ = load_step_settings("preprocess_structure", SETTINGS_PATH)
+    settings = validate_settings(merged_settings)
 
     run_id = str(settings["run_id"]).strip()
     source_run_id = str(settings["source_run_id"]).strip()
@@ -221,6 +256,7 @@ def main() -> None:
     output_file = run_output_dir / "preprocess_structure.json"
     records_file = run_output_dir / "preprocess_structure.records.jsonl"
     preprocessed_jsonl_file = run_output_dir / "preprocess_structure.jsonl"
+    archive_pipeline_settings(run_output_dir)
 
     if not source_summary_file.exists():
         raise FileNotFoundError(f"Step-3 summary file not found: {source_summary_file}")
@@ -312,6 +348,7 @@ def main() -> None:
                 for row_index, payload in enumerate(rows, start=1):
                     document_long_id = str(payload.get("document_long_id", "")).strip()
                     qname = extract_qname(payload)
+                    image_filename, image_index = extract_image_metadata(payload)
                     transcript = extract_transcript(payload)
 
                     base_event = {
@@ -320,6 +357,8 @@ def main() -> None:
                         "source_row_index": row_index,
                         "document_long_id": document_long_id or None,
                         "qname": qname or None,
+                        "image_filename": image_filename or None,
+                        "image_index": image_index,
                     }
 
                     if not transcript:
@@ -338,11 +377,12 @@ def main() -> None:
                     output_row = {
                         "document_long_id": document_long_id or None,
                         "qname": qname or None,
+                        "image_filename": image_filename or None,
+                        "image_index": image_index,
                         "source_prediction_file": to_project_relative(prediction_file),
                         "source_row_index": row_index,
                         "data": {
                             "preprocessed_transcript": preprocessed_transcript,
-                            "preprocess_details": preprocess_details,
                         },
                     }
                     preprocessed_file_handle.write(json.dumps(output_row, ensure_ascii=False))
@@ -350,6 +390,7 @@ def main() -> None:
 
                     event = dict(base_event)
                     event["status"] = "success"
+                    event["preprocess_details"] = preprocess_details
                     add_event(event)
 
         persist_run(RUN_STATUS_FINISHED, finished=True)

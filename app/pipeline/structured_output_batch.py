@@ -13,7 +13,7 @@ import argparse
 import json
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from urllib.request import Request, urlopen
 
 import google.auth
@@ -21,16 +21,15 @@ import google.genai as genai
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.cloud import storage
 from google.genai import types
-from pydantic import BaseModel, Field
 from utils.files import (
     append_jsonl,
     load_json,
     load_jsonl_rows,
     resolve_path as resolve_path_from_root,
     save_json,
-    validate_json_file,
 )
 from utils.gcp import parse_gs_uri, resolve_adc_credentials_from_env, upload_file_to_gcs_uri
+from utils.pipeline_config import archive_pipeline_settings, load_step_settings
 from utils.runtime import (
     RUN_STATUS_FAILED,
     RUN_STATUS_FINISHED,
@@ -59,129 +58,6 @@ SUPPORTED_BATCH_MODELS = {
     "gemini-3-flash-preview",
     "gemini-2.5-pro",
 }
-
-
-class HerbariumSpecimen(BaseModel):
-    """Structured data extracted from a herbarium specimen label."""
-
-    collectionName: Optional[str] = Field(
-        default=None,
-        description=("Full name of the source collection, herbarium, and/or museum."),
-    )
-    specimenIdentifier: Optional[str] = Field(
-        default=None,
-        description=(
-            "Museum accession, catalog number, or other identifier assigned to the specimen."
-        ),
-    )
-    collectorFieldNumber: Optional[str] = Field(
-        default=None,
-        description=("Identifier given by the collector in the field, usually a number."),
-    )
-    scientificName: Optional[str] = Field(
-        default=None,
-        description=(
-            "Scientific name without authorship, preferring the most recent determination if multiple are present."
-        ),
-    )
-    scientificNameAuthorship: Optional[str] = Field(
-        default=None,
-        description=("Author citation for the scientificName, and year if available."),
-    )
-    identifiedBy: Optional[str] = Field(
-        default=None,
-        description=(
-            "Name(s) of the person(s) who determined the scientific name, often indicated by 'det.', "
-            "'determ.', or 'conf.'. Use the most recent determination if multiple are present. "
-            "Separate multiple names with a semicolon."
-        ),
-    )
-    dateIdentified: Optional[str] = Field(
-        default=None,
-        description=("Year or full date of the (most recent) determination."),
-    )
-    family: Optional[str] = Field(
-        default=None,
-        description=(
-            "Scientific family name if explicitly stated on the label, typically ending in 'aceae' or 'ae'."
-        ),
-    )
-    eventDate: Optional[str] = Field(default=None, description="Collection date.")
-    eventDateInterpretation: Optional[str] = Field(
-        default=None,
-        description=(
-            "Interpretation of the collection date, in one of the following formats: 'YYYY-MM-DD', "
-            "'YYYY-MM', or'YYYY'. None if this cannot be determined."
-        ),
-    )
-    localityDescription: Optional[str] = Field(
-        default=None,
-        description=(
-            "Full locality description, preserving original wording and language. "
-            "May include country, region, site name, and/or directions."
-        ),
-    )
-    country: Optional[str] = Field(
-        default=None,
-        description=("Country name, which may be a historical or non-English."),
-    )
-    countryInterpretation: Optional[str] = Field(
-        default=None,
-        description=("Current, interpreted non-verbatim country name in English."),
-    )
-    stateProvince: Optional[str] = Field(
-        default=None,
-        description=(
-            "State, province, department, or equivalent first-level administrative unit."
-        ),
-    )
-    municipality: Optional[str] = Field(
-        default=None,
-        description=(
-            "Municipality, county, district, or equivalent second-level administrative unit."
-        ),
-    )
-    coordinates: Optional[str] = Field(
-        default=None,
-        description=(
-            "Verbatim coordinate string including punctuation - may be in a modern or historical format."
-        ),
-    )
-    coordinateSystemInterpretation: Optional[str] = Field(
-        default=None,
-        description=(
-            "Interpretation of the coordinate system used, e.g. 'UTM', 'WGS84', or such. "
-            "None if this cannot be determined."
-        ),
-    )
-    latitude: Optional[str] = Field(default=None, description=("Latitude verbatim."))
-    longitude: Optional[str] = Field(default=None, description=("Longitude verbatim."))
-    elevation: Optional[str] = Field(
-        default=None,
-        description=("Elevation or altitude including units if available."),
-    )
-    habitat: Optional[str] = Field(
-        default=None,
-        description=("Habitat description, vegetation community, substrate, microhabitat, or such."),
-    )
-    recordedBy: Optional[str] = Field(
-        default=None,
-        description=(
-            "Name(s) of the collector(s), often indicated by 'leg.', 'Coll.', or similar. "
-            "Separate multiple names with a semicolon."
-        ),
-    )
-    occurrenceRemarks: Optional[str] = Field(
-        default=None,
-        description=("Descriptive notes about the specimen, occurrence, or collecting event."),
-    )
-    nonWildInterpretation: Optional[bool] = Field(
-        default=None,
-        description=(
-            "Interpretation of wildness: True if the specimen was collected from a cultivated plant "
-            "or botanic garden. False if collected from a wild population. None if this cannot be determined."
-        ),
-    )
 
 
 def resolve_project_id(
@@ -334,29 +210,71 @@ def load_records_from_jsonl(path: Path) -> list[dict[str, Any]]:
     return load_jsonl_rows(path)
 
 
-def normalize_record_key(record: dict[str, Any], row_index: int) -> str:
+def normalize_specimen_key(record: dict[str, Any], row_index: int) -> str:
     qname = str(record.get("qname", "")).strip()
     if qname:
-        return qname
+        return f"qname:{qname}"
     document_long_id = str(record.get("document_long_id", "")).strip()
     if document_long_id:
-        return document_long_id
+        return f"doc:{document_long_id}"
     source_prediction_file = str(record.get("source_prediction_file", "")).strip()
     source_row_index = record.get("source_row_index")
-    return f"{source_prediction_file}#{source_row_index or row_index}"
+    return f"fallback:{source_prediction_file}#{source_row_index or row_index}"
 
 
-def latest_step5_records_by_key(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    by_key: dict[str, dict[str, Any]] = {}
+def group_step5_records_by_specimen(records: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    by_specimen: dict[str, list[dict[str, Any]]] = {}
     for row_index, row in enumerate(records, start=1):
-        by_key[normalize_record_key(row, row_index)] = row
-    return by_key
+        key = normalize_specimen_key(row, row_index)
+        by_specimen.setdefault(key, []).append(row)
+    return by_specimen
+
+
+def row_sort_key(row: dict[str, Any]) -> tuple[int, str, str, int]:
+    image_index_raw = row.get("image_index")
+    try:
+        image_index = int(image_index_raw) if image_index_raw is not None else 10_000_000
+    except (TypeError, ValueError):
+        image_index = 10_000_000
+
+    image_filename = str(row.get("image_filename", "")).strip()
+    source_prediction_file = str(row.get("source_prediction_file", "")).strip()
+    source_row_index_raw = row.get("source_row_index")
+    try:
+        source_row_index = int(source_row_index_raw) if source_row_index_raw is not None else 10_000_000
+    except (TypeError, ValueError):
+        source_row_index = 10_000_000
+    return (image_index, image_filename, source_prediction_file, source_row_index)
+
+
+def build_aggregated_transcript(rows: list[dict[str, Any]]) -> tuple[str, list[str], int]:
+    sorted_rows = sorted(rows, key=row_sort_key)
+    segments: list[str] = []
+    source_images: list[str] = []
+    for index, row in enumerate(sorted_rows, start=1):
+        data = row.get("data", {})
+        text = ""
+        if isinstance(data, dict):
+            text = str(data.get("preprocessed_transcript", "")).strip()
+        if not text:
+            continue
+        image_filename = str(row.get("image_filename", "")).strip()
+        image_index = row.get("image_index")
+        label = image_filename or f"image_{index}.jpg"
+        if image_index is not None:
+            label = f"{label} (index={image_index})"
+        source_images.append(image_filename or f"image_{index}")
+        segments.append(f"[Image {index}: {label}]\n{text}")
+    return "\n\n".join(segments).strip(), source_images, len(sorted_rows)
 
 
 def build_batch_request_row(
     *,
-    preprocessed_transcript: str,
+    aggregated_transcript: str,
     document_long_id: str,
+    qname: str,
+    image_count: int,
+    source_images: list[str],
     model_name: str,
     system_message: str,
     user_prompt: str,
@@ -377,12 +295,15 @@ def build_batch_request_row(
 
     return {
         "document_long_id": document_long_id,
+        "qname": qname or None,
+        "image_count": image_count,
+        "source_images": source_images,
         "request": {
             "systemInstruction": {"parts": [{"text": system_message}]},
             "contents": [
                 {
                     "role": "user",
-                    "parts": [{"text": f"{user_prompt}{preprocessed_transcript}"}],
+                    "parts": [{"text": f"{user_prompt}{aggregated_transcript}"}],
                 }
             ],
             "generationConfig": generation_config,
@@ -390,8 +311,7 @@ def build_batch_request_row(
     }
 
 
-def validate_settings(raw: dict[str, Any]) -> dict[str, Any]:
-    settings = raw.get("settings", {})
+def validate_settings(settings: dict[str, Any]) -> dict[str, Any]:
     required = [
         "run_id",
         "source_run_id",
@@ -402,6 +322,7 @@ def validate_settings(raw: dict[str, Any]) -> dict[str, Any]:
         "temperature",
         "system_message",
         "user_prompt",
+        "schema_file",
     ]
     missing = [key for key in required if settings.get(key) in (None, "")]
     if missing:
@@ -437,12 +358,8 @@ def main() -> None:
     started_at_now = now_iso()
     log("Starting structured output batch submission run")
 
-    if not SETTINGS_PATH.exists():
-        raise FileNotFoundError(f"Settings file not found: {SETTINGS_PATH}")
-
-    validate_json_file(SETTINGS_PATH)
-    raw_settings_payload = load_json(SETTINGS_PATH)
-    settings = validate_settings(raw_settings_payload)
+    merged_settings, _ = load_step_settings("structured_output_batch", SETTINGS_PATH)
+    settings = validate_settings(merged_settings)
     run_id = str(settings["run_id"]).strip()
     source_run_id = str(settings["source_run_id"]).strip()
     gcs_bucket = str(settings["gcs_bucket"]).strip()
@@ -452,6 +369,10 @@ def main() -> None:
     temperature = float(settings["temperature"])
     system_message = str(settings["system_message"]).strip()
     user_prompt = str(settings["user_prompt"])
+    schema_file = resolve_path_from_root(PROJECT_ROOT, str(settings["schema_file"]).strip())
+    if not schema_file.exists():
+        raise FileNotFoundError(f"Structured output schema file not found: {schema_file}")
+    response_json_schema = load_json(schema_file)
     source_summary_file_setting = str(
         settings.get(
             "source_summary_file",
@@ -478,6 +399,7 @@ def main() -> None:
     output_file = output_base
     records_file = output_base.with_name("structured_output_batch.records.jsonl")
     local_batch_input_file = output_base.with_name("structured_output_batch.input.jsonl")
+    archive_pipeline_settings(run_output_dir)
 
     batch_input_uri = (
         f"gs://{gcs_bucket}/{gcs_prefix}/batch_jobs/{run_id}/structured_requests.jsonl"
@@ -550,16 +472,8 @@ def main() -> None:
     )
 
     source_rows = load_records_from_jsonl(source_records_file)
-    source_latest_by_key = latest_step5_records_by_key(source_rows)
-    source_specimens = sorted(
-        source_latest_by_key.values(),
-        key=lambda item: (
-            str(item.get("qname", "")),
-            str(item.get("document_long_id", "")),
-            str(item.get("source_prediction_file", "")),
-            str(item.get("source_row_index", "")),
-        ),
-    )
+    source_grouped = group_step5_records_by_specimen(source_rows)
+    source_specimens = sorted(source_grouped.items(), key=lambda item: item[0])
 
     records_by_key: dict[str, dict[str, Any]] = {}
     if records_file.exists():
@@ -581,7 +495,7 @@ def main() -> None:
         failed = sum(1 for rec in records_by_key.values() if rec.get("status") == "failed")
         return {
             "source_rows_total": len(source_rows),
-            "source_specimens_latest": len(source_specimens),
+            "source_specimens_grouped": len(source_specimens),
             "eligible": eligible,
             "queued": queued,
             "skipped": skipped,
@@ -608,6 +522,7 @@ def main() -> None:
             "temperature": temperature,
             "batch_input_uri": batch_input_uri,
             "batch_output_uri_prefix": batch_output_uri_prefix,
+            "schema_file": str(schema_file),
         },
         "data": {
             "counts": build_counts(),
@@ -634,15 +549,15 @@ def main() -> None:
         pending_specimens = source_specimens[: args.limit]
 
     processed_since_flush = 0
-    response_json_schema = HerbariumSpecimen.model_json_schema()
 
     try:
-        for row_index, specimen in enumerate(pending_specimens, start=1):
-            record_key = normalize_record_key(specimen, row_index)
-            qname = str(specimen.get("qname", "")).strip() or None
-            document_long_id = str(specimen.get("document_long_id", "")).strip()
-            source_prediction_file = str(specimen.get("source_prediction_file", "")).strip()
-            source_row_index = specimen.get("source_row_index")
+        for row_index, (specimen_key, specimen_rows) in enumerate(pending_specimens, start=1):
+            representative = sorted(specimen_rows, key=row_sort_key)[0]
+            record_key = specimen_key
+            qname = str(representative.get("qname", "")).strip() or None
+            document_long_id = str(representative.get("document_long_id", "")).strip()
+            source_prediction_file = str(representative.get("source_prediction_file", "")).strip()
+            source_row_index = representative.get("source_row_index")
 
             record = {
                 "record_key": record_key,
@@ -650,20 +565,19 @@ def main() -> None:
                 "document_long_id": document_long_id or None,
                 "source_prediction_file": source_prediction_file or None,
                 "source_row_index": source_row_index,
+                "image_count": len(specimen_rows),
+                "source_images": [],
                 "status": "skipped",
                 "error": None,
                 "notes": [],
             }
 
-            data = specimen.get("data", {})
-            preprocessed_transcript = ""
-            if isinstance(data, dict):
-                preprocessed_transcript = str(
-                    data.get("preprocessed_transcript", "")
-                ).strip()
-            if not preprocessed_transcript:
+            aggregated_transcript, source_images, image_count = build_aggregated_transcript(specimen_rows)
+            record["source_images"] = source_images
+            record["image_count"] = image_count
+            if not aggregated_transcript:
                 record["error"] = (
-                    "Missing data.preprocessed_transcript in step-5 record."
+                    "No non-empty data.preprocessed_transcript values found in grouped step-5 rows."
                 )
                 records_by_key[record_key] = record
                 append_jsonl(records_file, record)
@@ -674,8 +588,11 @@ def main() -> None:
                 continue
 
             batch_row = build_batch_request_row(
-                preprocessed_transcript=preprocessed_transcript,
+                aggregated_transcript=aggregated_transcript,
                 document_long_id=document_long_id,
+                qname=qname or "",
+                image_count=image_count,
+                source_images=source_images,
                 model_name=model_name,
                 system_message=system_message,
                 user_prompt=user_prompt,

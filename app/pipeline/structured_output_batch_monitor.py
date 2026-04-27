@@ -24,9 +24,9 @@ from utils.files import (
     load_jsonl_rows,
     resolve_path as resolve_path_from_root,
     save_json,
-    validate_json_file,
 )
 from utils.gcp import parse_gs_uri, resolve_adc_credentials_from_env
+from utils.pipeline_config import archive_pipeline_settings, load_step_settings
 from utils.runtime import (
     RUN_STATUS_FAILED,
     RUN_STATUS_FINISHED,
@@ -67,8 +67,7 @@ def is_terminal_job_state(job_state: str) -> bool:
     return job_state in terminal_states
 
 
-def validate_settings(raw: dict[str, Any]) -> dict[str, Any]:
-    settings = raw.get("settings", {})
+def validate_settings(settings: dict[str, Any]) -> dict[str, Any]:
     required = [
         "run_id",
         "source_run_id",
@@ -109,12 +108,8 @@ def main() -> None:
     started_monotonic = time.monotonic()
     timeout_seconds = int(args.timeout_hours * 3600)
 
-    if not SETTINGS_PATH.exists():
-        raise FileNotFoundError(f"Settings file not found: {SETTINGS_PATH}")
-
-    validate_json_file(SETTINGS_PATH)
-    raw_settings_payload = load_json(SETTINGS_PATH)
-    settings = validate_settings(raw_settings_payload)
+    merged_settings, _ = load_step_settings("structured_output_batch_monitor", SETTINGS_PATH)
+    settings = validate_settings(merged_settings)
 
     run_id = str(settings["run_id"]).strip()
     source_run_id = str(settings["source_run_id"]).strip()
@@ -133,6 +128,7 @@ def main() -> None:
     records_file = output_file.with_name("structured_output_batch_monitor.records.jsonl")
     download_root = run_output_dir / "structured_output_batch_responses"
     download_root_relative = str(download_root.relative_to(PROJECT_ROOT))
+    archive_pipeline_settings(run_output_dir)
 
     project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "").strip()
     if not project_id:

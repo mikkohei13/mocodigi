@@ -13,8 +13,11 @@ On-disk output (image dataset):
 Selection:
 - Discover matching documents by querying /warehouse/query/unit/list using the query
   parameters parsed from the provided `search_url`.
-- For each discovered document, fetch the full document and download the first IMAGE
+- For each discovered document, fetch the full document and download all IMAGE
   media found in document.gatherings[].units[].media[] traversal.
+- If multiple images exist for one specimen, files are named as:
+  `<base>.jpg`, `<base>_2.jpg`, `<base>_3.jpg`, ...
+- Existing target files are skipped (not downloaded again).
 """
 
 from __future__ import annotations
@@ -35,8 +38,8 @@ from utils.files import (
     load_jsonl_rows,
     resolve_path as resolve_path_from_root,
     save_json,
-    validate_json_file,
 )
+from utils.pipeline_config import archive_pipeline_settings, load_step_settings
 from utils.runtime import (
     RUN_STATUS_FAILED,
     RUN_STATUS_FINISHED,
@@ -61,23 +64,20 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent
 SETTINGS_PATH = SCRIPT_DIR / "settings" / "download_images_settings.json"
 
 IMAGE_REQUEST_HEADERS = {
-    # Browser-like User-Agent for image requests (some servers block scripts).
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "User-Agent": os.getenv("USER_AGENT", "UserAgentString")
 }
 
 SUMMARY_FLUSH_EVERY = 200
 PAGE_SIZE = 100
-SLEEP_SECONDS_BETWEEN_DOCS = 0.2
-SLEEP_SECONDS_BETWEEN_IMAGE_DOWNLOADS = 0.2
+SLEEP_SECONDS_BETWEEN_DOCS = 0.1
+SLEEP_SECONDS_BETWEEN_IMAGE_DOWNLOADS = 1
 
 FINBIF_BASE_URL = "https://api.laji.fi"
 FINBIF_UNIT_LIST_URL = f"{FINBIF_BASE_URL}/warehouse/query/unit/list"
 FINBIF_DOCUMENT_URL = f"{FINBIF_BASE_URL}/warehouse/query/document"
 
 
-def validate_settings(raw: dict[str, Any]) -> dict[str, Any]:
-    settings = raw.get("settings", {})
+def validate_settings(settings: dict[str, Any]) -> dict[str, Any]:
     required = ["run_id", "image_folder_name", "search_url"]
     missing = [key for key in required if not settings.get(key)]
     if missing:
@@ -108,12 +108,6 @@ def iter_document_images(document_payload: dict[str, Any]) -> Iterable[dict[str,
             for media in unit.get("media", []) or []:
                 if (media or {}).get("mediaType") == "IMAGE" and media.get("fullURL"):
                     yield media
-
-
-def first_document_image(document_payload: dict[str, Any]) -> dict[str, Any] | None:
-    for media in iter_document_images(document_payload):
-        return media
-    return None
 
 
 def image_filename_from_url(image_url: str) -> str:
@@ -199,12 +193,17 @@ def build_specimen_folder(images_root: Path, document_id_long: str) -> tuple[str
     return qname, last_char, folder
 
 
-def pick_if_already_materialized(folder: Path) -> bool:
-    doc_path = folder / "document.json"
-    if not doc_path.exists():
-        return False
-    jpgs = sorted([p for p in folder.iterdir() if p.is_file() and p.suffix.lower() == ".jpg"])
-    return len(jpgs) > 0
+def indexed_image_filename(base_filename: str, index: int) -> str:
+    """
+    For index=1 return `<base>.jpg`, for index>=2 return `<base>_<index>.jpg`.
+    """
+
+    p = Path(base_filename)
+    stem = p.stem or "image"
+    suffix = p.suffix or ".jpg"
+    if index <= 1:
+        return f"{stem}{suffix}"
+    return f"{stem}_{index}{suffix}"
 
 
 def parse_args() -> argparse.Namespace:
@@ -229,12 +228,8 @@ def main() -> None:
     started_at_now = now_iso()
     log("Starting Step 0: download_images")
 
-    if not SETTINGS_PATH.exists():
-        raise FileNotFoundError(f"Settings file not found: {SETTINGS_PATH}")
-
-    validate_json_file(SETTINGS_PATH)
-    raw_settings_payload = load_json(SETTINGS_PATH)
-    settings = validate_settings(raw_settings_payload)
+    merged_settings, _ = load_step_settings("download_images", SETTINGS_PATH)
+    settings = validate_settings(merged_settings)
 
     run_id = str(settings["run_id"]).strip()
     search_url = str(settings["search_url"]).strip()
@@ -245,6 +240,7 @@ def main() -> None:
     run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{run_id}")
     output_file = run_output_dir / "download_images.json"
     records_file = output_file.with_name("download_images.records.jsonl")
+    archive_pipeline_settings(run_output_dir)
 
     limit_caused_incomplete = False
 
@@ -329,8 +325,8 @@ def main() -> None:
             # Build params for unit list query:
             # - Pass through all `search_url` query params unchanged.
             # - We intentionally ignore any `hasUnitMedia` value in `search_url`
-            #   because it doesn't matter whether units have media; we download the
-            #   first image found inside each fetched document.
+            #   because it doesn't matter whether units have media; we download all
+            #   images found inside each fetched document.
             params: dict[str, Any] = dict(all_query_params)
             params.pop("hasUnitMedia", None)
             params.update(
@@ -379,19 +375,10 @@ def main() -> None:
                     "error": None,
                     "selected_image_filename": None,
                     "selected_image_full_url": None,
+                    "downloaded_image_filenames": [],
+                    "downloaded_image_full_urls": [],
+                    "skipped_existing_image_filenames": [],
                 }
-
-                if pick_if_already_materialized(specimen_folder):
-                    log(f"Skipping {qname}: document.json and at least one .jpg already exist")
-                    record["status"] = "skipped"
-                    processed_by_document_id[document_id_long] = record
-                    append_jsonl(records_file, record)
-                    processed_since_flush += 1
-                    newly_processed += 1
-                    if args.limit is not None and newly_processed >= args.limit:
-                        limit_caused_incomplete = True
-                        break
-                    continue
 
                 # Fetch full document JSON.
                 record["status"] = "skipped"
@@ -400,8 +387,8 @@ def main() -> None:
                     params={"documentId": document_id_long},
                 )
 
-                media = first_document_image(document_payload)
-                if not media:
+                media_items = list(iter_document_images(document_payload))
+                if not media_items:
                     log(f"Skipping {qname}: no IMAGE media found in document payload")
                     record["error"] = "No IMAGE media found in document.gatherings[].units[].media[]"
                     processed_by_document_id[document_id_long] = record
@@ -413,10 +400,10 @@ def main() -> None:
                         break
                     continue
 
-                image_url = str(media.get("fullURL") or "").strip()
-                if not image_url:
-                    log(f"Skipping {qname}: selected media has no fullURL")
-                    record["error"] = "Media fullURL missing"
+                first_image_url = str(media_items[0].get("fullURL") or "").strip()
+                if not first_image_url:
+                    log(f"Skipping {qname}: first IMAGE media has no fullURL")
+                    record["error"] = "First IMAGE media fullURL missing"
                     processed_by_document_id[document_id_long] = record
                     append_jsonl(records_file, record)
                     processed_since_flush += 1
@@ -426,26 +413,45 @@ def main() -> None:
                         break
                     continue
 
-                image_filename = image_filename_from_url(image_url)
-                image_path = specimen_folder / image_filename
-                log(f"Downloading image for {qname}: {image_url}")
+                base_image_filename = image_filename_from_url(first_image_url)
+                downloaded_any = False
 
+                # Keep the existing initial delay cadence before image downloads.
                 time.sleep(SLEEP_SECONDS_BETWEEN_DOCS)
 
-                image_bytes = fetch_image_bytes(image_url)
-                time.sleep(SLEEP_SECONDS_BETWEEN_IMAGE_DOWNLOADS)
+                for image_index, media in enumerate(media_items, start=1):
+                    image_url = str(media.get("fullURL") or "").strip()
+                    if not image_url:
+                        continue
 
-                with image_path.open("wb") as f:
-                    f.write(image_bytes)
+                    image_filename = indexed_image_filename(base_image_filename, image_index)
+                    image_path = specimen_folder / image_filename
+
+                    if image_path.exists():
+                        record["skipped_existing_image_filenames"].append(image_filename)
+                        continue
+
+                    log(f"Downloading image for {qname}: {image_url} -> {image_filename}")
+                    image_bytes = fetch_image_bytes(image_url)
+                    with image_path.open("wb") as f:
+                        f.write(image_bytes)
+                    time.sleep(SLEEP_SECONDS_BETWEEN_IMAGE_DOWNLOADS)
+
+                    record["downloaded_image_filenames"].append(image_filename)
+                    record["downloaded_image_full_urls"].append(image_url)
+                    downloaded_any = True
 
                 document_json_path = specimen_folder / "document.json"
                 with document_json_path.open("w", encoding="utf-8") as f:
                     json.dump(document_payload, f, ensure_ascii=False, indent=2)
 
-                record["selected_image_filename"] = image_filename
-                record["selected_image_full_url"] = image_url
-                record["status"] = "downloaded"
-                log(f"Saved {qname} -> {image_path.name} + document.json")
+                record["selected_image_filename"] = indexed_image_filename(base_image_filename, 1)
+                record["selected_image_full_url"] = first_image_url
+                record["status"] = "downloaded" if downloaded_any else "skipped"
+                log(
+                    f"Saved {qname}: downloaded={len(record['downloaded_image_filenames'])}, "
+                    f"existing_skipped={len(record['skipped_existing_image_filenames'])} + document.json"
+                )
                 processed_by_document_id[document_id_long] = record
                 append_jsonl(records_file, record)
 

@@ -5,8 +5,8 @@ Step 1:
 - Parse qname from document.json -> document.documentId.
 
 Step 2:
-- Upload selected JPG image per specimen to GCS.
-- Write one run-level summary JSON + per-specimen JSONL records.
+- Upload all JPG images per specimen to GCS.
+- Write one run-level summary JSON + per-image JSONL records.
 """
 
 from __future__ import annotations
@@ -23,9 +23,9 @@ from utils.files import (
     load_jsonl_rows,
     resolve_path as resolve_path_from_root,
     save_json,
-    validate_json_file,
 )
 from utils.gcp import resolve_adc_credentials_from_env, upload_file_to_gcs_blob
+from utils.pipeline_config import archive_pipeline_settings, load_step_settings
 from utils.runtime import (
     RUN_STATUS_FAILED,
     RUN_STATUS_FINISHED,
@@ -51,13 +51,25 @@ SETTINGS_PATH = SCRIPT_DIR / "settings" / "upload_images_settings.json"
 SUMMARY_FLUSH_EVERY = 200
 
 
+def record_key_from_payload(payload: dict[str, Any]) -> str:
+    folder_key = str(payload.get("specimen_folder", "")).strip()
+    image_filename = str(
+        payload.get("image_filename")
+        or payload.get("selected_image")
+        or ""
+    ).strip()
+    if image_filename:
+        return f"{folder_key}|{image_filename}"
+    return f"{folder_key}|__folder__"
+
+
 def load_records_from_jsonl(path: Path) -> dict[str, dict[str, Any]]:
-    records_by_folder: dict[str, dict[str, Any]] = {}
+    records_by_key: dict[str, dict[str, Any]] = {}
     for payload in load_jsonl_rows(path):
-        folder_key = str(payload.get("specimen_folder", "")).strip()
-        if folder_key:
-            records_by_folder[folder_key] = payload
-    return records_by_folder
+        key = record_key_from_payload(payload)
+        if key and not key.startswith("|"):
+            records_by_key[key] = payload
+    return records_by_key
 
 
 def extract_qname(document_id: str) -> str:
@@ -76,8 +88,7 @@ def pick_jpgs(folder: Path) -> list[Path]:
     )
 
 
-def validate_settings(raw: dict[str, Any]) -> dict[str, Any]:
-    settings = raw.get("settings", {})
+def validate_settings(settings: dict[str, Any]) -> dict[str, Any]:
     required = [
         "run_id",
         "input_dir",
@@ -118,12 +129,8 @@ def main() -> None:
     started_at_now = now_iso()
     log("Starting specimen pipeline run")
 
-    if not SETTINGS_PATH.exists():
-        raise FileNotFoundError(f"Settings file not found: {SETTINGS_PATH}")
-
-    validate_json_file(SETTINGS_PATH)
-    raw_settings_payload = load_json(SETTINGS_PATH)
-    settings = validate_settings(raw_settings_payload)
+    merged_settings, _ = load_step_settings("upload_images", SETTINGS_PATH)
+    settings = validate_settings(merged_settings)
     gcs_bucket = settings["gcs_bucket"]
     gcs_location = settings["gcs_location"]
     gcs_prefix = settings["gcs_prefix"]
@@ -134,6 +141,7 @@ def main() -> None:
     run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{run_id}")
     output_file = run_output_dir / "upload_images.json"
     records_file = output_file.with_name("upload_images.records.jsonl")
+    archive_pipeline_settings(run_output_dir)
 
     if not input_dir.exists() or not input_dir.is_dir():
         raise NotADirectoryError(f"Input directory does not exist: {input_dir}")
@@ -222,21 +230,9 @@ def main() -> None:
             "attempting to resume."
         )
 
-    records_by_folder: dict[str, dict[str, Any]] = {}
-    if existing_output:
-        existing_records = existing_output.get("data", {}).get("specimens", [])
-        for item in existing_records:
-            folder_key = str(item.get("specimen_folder", "")).strip()
-            if folder_key:
-                records_by_folder[folder_key] = item
-    jsonl_records = load_records_from_jsonl(records_file)
-    records_by_folder.update(jsonl_records)
+    records_by_key: dict[str, dict[str, Any]] = load_records_from_jsonl(records_file)
 
-    pending_folders = [
-        folder
-        for folder in all_specimen_folders
-        if records_by_folder.get(str(folder), {}).get("status") != "uploaded"
-    ]
+    pending_folders = list(all_specimen_folders)
     if args.limit is None:
         specimen_folders = pending_folders
     else:
@@ -247,10 +243,10 @@ def main() -> None:
     log(f"Processing {len(specimen_folders)} specimen folders this run")
 
     def build_counts() -> dict[str, int]:
-        uploaded = sum(1 for rec in records_by_folder.values() if rec.get("status") == "uploaded")
-        failed = sum(1 for rec in records_by_folder.values() if rec.get("status") == "failed")
-        skipped = sum(1 for rec in records_by_folder.values() if rec.get("status") == "skipped")
-        valid_specimens = sum(1 for rec in records_by_folder.values() if rec.get("qname"))
+        uploaded = sum(1 for rec in records_by_key.values() if rec.get("status") == "uploaded")
+        failed = sum(1 for rec in records_by_key.values() if rec.get("status") == "failed")
+        skipped = sum(1 for rec in records_by_key.values() if rec.get("status") == "skipped")
+        valid_specimens = sum(1 for rec in records_by_key.values() if rec.get("qname"))
         return {
             "total_folders": discovered_folders,
             "discovered_folders": discovered_folders,
@@ -278,7 +274,7 @@ def main() -> None:
         },
         "data": {
             "counts": build_counts(),
-            "records_logged": len(records_by_folder),
+            "records_logged": len(records_by_key),
         },
     }
 
@@ -288,7 +284,7 @@ def main() -> None:
         run_output["last_updated_at"] = now_iso()
         run_output["finished_at"] = now_iso() if finished else None
         run_output["data"]["counts"] = build_counts()
-        run_output["data"]["records_logged"] = len(records_by_folder)
+        run_output["data"]["records_logged"] = len(records_by_key)
         save_json(output_file, run_output)
 
     # Persist immediately so interruptions always leave a run-status record.
@@ -301,36 +297,26 @@ def main() -> None:
     try:
         for folder in specimen_folders:
             folder_key = str(folder)
-            previous = records_by_folder.get(folder_key)
-            if previous and previous.get("status") == "uploaded":
-                log(f"Skipping already uploaded folder: {folder.name}")
-                continue
-
             log(f"Processing folder: {folder.name}")
-            record: dict[str, Any] = {
+            base_record: dict[str, Any] = {
                 "specimen_folder": folder_key,
                 "status": "skipped",
                 "error": None,
-                "notes": [],
                 "document_id_long": None,
                 "qname": None,
-                "jpg_count_in_folder": 0,
-                "selected_image": None,
-                "local_image_path": None,
+                "image_filename": None,
+                "image_index": None,
                 "gcs_uri": None,
             }
 
             document_path = folder / "document.json"
             jpg_files = pick_jpgs(folder)
-            record["jpg_count_in_folder"] = len(jpg_files)
-
-            if len(jpg_files) > 1:
-                record["notes"].append(f"Found {len(jpg_files)} JPG files; selected first_sorted_jpg.")
 
             if not document_path.exists():
+                record = dict(base_record)
                 record["error"] = "Missing document.json"
                 log(f"Skipped {folder.name}: missing document.json")
-                records_by_folder[folder_key] = record
+                records_by_key[record_key_from_payload(record)] = record
                 append_jsonl(records_file, record)
                 processed_since_flush += 1
                 if processed_since_flush >= SUMMARY_FLUSH_EVERY:
@@ -339,9 +325,10 @@ def main() -> None:
                 continue
 
             if not jpg_files:
+                record = dict(base_record)
                 record["error"] = "No JPG image found"
                 log(f"Skipped {folder.name}: no JPG image found")
-                records_by_folder[folder_key] = record
+                records_by_key[record_key_from_payload(record)] = record
                 append_jsonl(records_file, record)
                 processed_since_flush += 1
                 if processed_since_flush >= SUMMARY_FLUSH_EVERY:
@@ -349,18 +336,15 @@ def main() -> None:
                     processed_since_flush = 0
                 continue
 
-            selected_image = jpg_files[0]
-            record["selected_image"] = selected_image.name
-            record["local_image_path"] = str(selected_image)
-
             try:
                 document_payload = load_json(document_path)
                 document_id_long = document_payload.get("document", {}).get("documentId", "")
                 qname = extract_qname(document_id_long)
             except Exception as exc:
+                record = dict(base_record)
                 record["error"] = f"Failed to parse document.json: {exc}"
                 log(f"Skipped {folder.name}: failed to parse document.json ({exc})")
-                records_by_folder[folder_key] = record
+                records_by_key[record_key_from_payload(record)] = record
                 append_jsonl(records_file, record)
                 processed_since_flush += 1
                 if processed_since_flush >= SUMMARY_FLUSH_EVERY:
@@ -369,9 +353,10 @@ def main() -> None:
                 continue
 
             if not document_id_long or not qname:
+                record = dict(base_record)
                 record["error"] = "Missing or invalid document.documentId"
                 log(f"Skipped {folder.name}: missing/invalid document.documentId")
-                records_by_folder[folder_key] = record
+                records_by_key[record_key_from_payload(record)] = record
                 append_jsonl(records_file, record)
                 processed_since_flush += 1
                 if processed_since_flush >= SUMMARY_FLUSH_EVERY:
@@ -379,38 +364,55 @@ def main() -> None:
                     processed_since_flush = 0
                 continue
 
-            record["document_id_long"] = document_id_long
-            record["qname"] = qname
+            for image_index, selected_image in enumerate(jpg_files, start=1):
+                record = dict(base_record)
+                record["document_id_long"] = document_id_long
+                record["qname"] = qname
+                record["image_filename"] = selected_image.name
+                record["image_index"] = image_index
 
-            blob_name = build_blob_name(
-                gcs_prefix=gcs_prefix,
-                qname=qname,
-                image_name=selected_image.name,
-            )
-            target_uri = f"gs://{gcs_bucket}/{blob_name}"
-            log(f"Uploading {selected_image.name} -> {target_uri}")
+                record_key = record_key_from_payload(record)
+                previous = records_by_key.get(record_key)
+                if previous and previous.get("status") == "uploaded":
+                    record["status"] = "skipped"
+                    record["gcs_uri"] = previous.get("gcs_uri")
+                    append_jsonl(records_file, record)
+                    records_by_key[record_key] = record
+                    processed_since_flush += 1
+                    if processed_since_flush >= SUMMARY_FLUSH_EVERY:
+                        persist_run(RUN_STATUS_RUNNING)
+                        processed_since_flush = 0
+                    continue
 
-            try:
-                gcs_uri = upload_file_to_gcs_blob(
-                    client=storage_client,
-                    bucket_name=gcs_bucket,
-                    blob_name=blob_name,
-                    local_file=selected_image,
+                blob_name = build_blob_name(
+                    gcs_prefix=gcs_prefix,
+                    qname=qname,
+                    image_name=selected_image.name,
                 )
-                record["gcs_uri"] = gcs_uri
-                record["status"] = "uploaded"
-                log(f"Uploaded successfully: {gcs_uri}")
-            except Exception as exc:
-                record["status"] = "failed"
-                record["error"] = f"GCS upload failed: {exc}"
-                log(f"Upload failed for {folder.name}: {exc}")
+                target_uri = f"gs://{gcs_bucket}/{blob_name}"
+                log(f"Uploading {selected_image.name} -> {target_uri}")
 
-            records_by_folder[folder_key] = record
-            append_jsonl(records_file, record)
-            processed_since_flush += 1
-            if processed_since_flush >= SUMMARY_FLUSH_EVERY:
-                persist_run(RUN_STATUS_RUNNING)
-                processed_since_flush = 0
+                try:
+                    gcs_uri = upload_file_to_gcs_blob(
+                        client=storage_client,
+                        bucket_name=gcs_bucket,
+                        blob_name=blob_name,
+                        local_file=selected_image,
+                    )
+                    record["gcs_uri"] = gcs_uri
+                    record["status"] = "uploaded"
+                    log(f"Uploaded successfully: {gcs_uri}")
+                except Exception as exc:
+                    record["status"] = "failed"
+                    record["error"] = f"GCS upload failed: {exc}"
+                    log(f"Upload failed for {folder.name}/{selected_image.name}: {exc}")
+
+                records_by_key[record_key] = record
+                append_jsonl(records_file, record)
+                processed_since_flush += 1
+                if processed_since_flush >= SUMMARY_FLUSH_EVERY:
+                    persist_run(RUN_STATUS_RUNNING)
+                    processed_since_flush = 0
 
     except RunTerminatedError as exc:
         log(str(exc))

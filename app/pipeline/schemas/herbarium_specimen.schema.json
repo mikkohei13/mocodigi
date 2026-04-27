@@ -1,0 +1,142 @@
+{
+  "title": "HerbariumSpecimen",
+  "description": "Structured data extracted from a herbarium specimen label.",
+  "type": "object",
+  "properties": {
+    "collectionName": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Full name of the source collection, herbarium, and/or museum."
+    },
+    "specimenIdentifier": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Museum accession, catalog number, or other identifier assigned to the specimen."
+    },
+    "collectorFieldNumber": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Identifier given by the collector in the field, usually a number."
+    },
+    "scientificName": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Scientific name without authorship, preferring the most recent determination if multiple are present."
+    },
+    "scientificNameAuthorship": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Author citation for the scientificName, and year if available."
+    },
+    "identifiedBy": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Name(s) of the person(s) who determined the scientific name, often indicated by 'det.', 'determ.', or 'conf.'. Use the most recent determination if multiple are present. Separate multiple names with a semicolon."
+    },
+    "dateIdentified": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Year or full date of the (most recent) determination."
+    },
+    "family": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Scientific family name if explicitly stated on the label, typically ending in 'aceae' or 'ae'."
+    },
+    "eventDate": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Collection date."
+    },
+    "eventDateInterpretation": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Interpretation of the collection date, in one of the following formats: 'YYYY-MM-DD', 'YYYY-MM', or'YYYY'. None if this cannot be determined."
+    },
+    "localityDescription": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Full locality description, preserving original wording and language. May include country, region, site name, and/or directions."
+    },
+    "country": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Country name, which may be a historical or non-English."
+    },
+    "countryInterpretation": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Current, interpreted non-verbatim country name in English."
+    },
+    "stateProvince": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "State, province, department, or equivalent first-level administrative unit."
+    },
+    "municipality": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Municipality, county, district, or equivalent second-level administrative unit."
+    },
+    "coordinates": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Verbatim coordinate string including punctuation - may be in a modern or historical format."
+    },
+    "coordinateSystemInterpretation": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Interpretation of the coordinate system used, e.g. 'UTM', 'WGS84', or such. None if this cannot be determined."
+    },
+    "latitude": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Latitude verbatim."
+    },
+    "longitude": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Longitude verbatim."
+    },
+    "elevation": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Elevation or altitude including units if available."
+    },
+    "habitat": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Habitat description, vegetation community, substrate, microhabitat, or such."
+    },
+    "recordedBy": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Name(s) of the collector(s), often indicated by 'leg.', 'Coll.', or similar. Separate multiple names with a semicolon."
+    },
+    "occurrenceRemarks": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Descriptive notes about the specimen, occurrence, or collecting event."
+    },
+    "nonWildInterpretation": {
+      "anyOf": [{"type": "boolean"}, {"type": "null"}],
+      "default": null,
+      "description": "Interpretation of wildness: True if the specimen was collected from a cultivated plant or botanic garden. False if collected from a wild population. None if this cannot be determined."
+    },
+    "typeStatus": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Taxonomic type designation, such as TYPE, holotype, ISOLECTOTYPE, etc."
+    },
+    "typeName": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Scientific name of the type species. Can be different from the scientificName. Usually shown in combination with typeStatus."
+    },
+    "chemicalNotes": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Chemical analysis notes, such as thallus reactions, TLC/chemistry labels, etc."
+    }
+  }
+}

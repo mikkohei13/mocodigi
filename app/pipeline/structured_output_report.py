@@ -1,14 +1,15 @@
-"""Generate an HTML transcript report from batch prediction responses.
+"""Generate an HTML report from structured-output batch prediction responses.
 
-Step 4:
-- Read step-3 monitor summary to locate downloaded batch responses.
+Step 7B:
+- Read step-7 monitor summary to locate downloaded batch responses.
 - Parse all predictions.jsonl rows.
-- Build an HTML table with specimen id (qname) and transcript text.
+- Build an HTML table with specimen id (qname), source images, and formatted JSON.
 """
 
 from __future__ import annotations
 
 import html
+import json
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,7 @@ from utils.runtime import log
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
-SETTINGS_PATH = SCRIPT_DIR / "settings" / "transcript_report_settings.json"
+SETTINGS_PATH = SCRIPT_DIR / "settings" / "structured_output_report_settings.json"
 
 
 def validate_settings(settings: dict[str, Any]) -> dict[str, Any]:
@@ -34,59 +35,19 @@ def extract_qname(payload: dict[str, Any]) -> str:
     direct_qname = str(payload.get("qname", "")).strip()
     if direct_qname:
         return direct_qname
-
-    contents = payload.get("request", {}).get("contents", [])
-    if not isinstance(contents, list):
-        return ""
-    for content in contents:
-        if not isinstance(content, dict):
-            continue
-        parts = content.get("parts", [])
-        if not isinstance(parts, list):
-            continue
-        for part in parts:
-            if not isinstance(part, dict):
-                continue
-            file_data = part.get("fileData")
-            if not isinstance(file_data, dict):
-                continue
-            file_uri = str(file_data.get("fileUri", "")).strip()
-            if not file_uri.startswith("gs://"):
-                continue
-            uri_parts = [segment for segment in file_uri.split("/") if segment]
-            # gs://bucket/qname/file.jpg => qname is penultimate segment
-            if len(uri_parts) >= 4:
-                return uri_parts[-2]
     return ""
 
 
-def extract_image_filename(payload: dict[str, Any]) -> str:
-    direct_image = str(payload.get("image_filename", "")).strip()
-    if direct_image:
-        return direct_image
-
-    contents = payload.get("request", {}).get("contents", [])
-    if not isinstance(contents, list):
-        return ""
-    for content in contents:
-        if not isinstance(content, dict):
-            continue
-        parts = content.get("parts", [])
-        if not isinstance(parts, list):
-            continue
-        for part in parts:
-            if not isinstance(part, dict):
-                continue
-            file_data = part.get("fileData")
-            if not isinstance(file_data, dict):
-                continue
-            file_uri = str(file_data.get("fileUri", "")).strip()
-            if file_uri.startswith("gs://"):
-                return file_uri.rsplit("/", 1)[-1].strip()
+def extract_source_images_display(payload: dict[str, Any]) -> str:
+    raw = payload.get("source_images")
+    if isinstance(raw, list):
+        return ", ".join(str(x).strip() for x in raw if str(x).strip())
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
     return ""
 
 
-def extract_transcript(payload: dict[str, Any]) -> str:
+def extract_response_text(payload: dict[str, Any]) -> str:
     candidates = payload.get("response", {}).get("candidates", [])
     if not isinstance(candidates, list) or not candidates:
         return ""
@@ -108,22 +69,41 @@ def extract_transcript(payload: dict[str, Any]) -> str:
     return ""
 
 
+def format_structured_text(raw_text: str) -> str:
+    stripped = raw_text.strip()
+    if not stripped:
+        return ""
+    try:
+        parsed = json.loads(stripped)
+        return json.dumps(parsed, ensure_ascii=False, indent=2)
+    except json.JSONDecodeError:
+        return raw_text
+
+
 def build_html_report(*, run_id: str, source_run_id: str, rows: list[dict[str, str]]) -> str:
     table_rows = []
     for item in rows:
-        qname_html = html.escape(item.get("qname", ""))
-        image_html = html.escape(item.get("image_filename", ""))
-        transcript_html = html.escape(item.get("transcript", ""))
+        qname = item.get("qname", "")
+        qname_text = html.escape(qname)
+        if qname:
+            qname_html = (
+                f"<a href=\"https://id.luomus.fi/{qname_text}\" "
+                f"target=\"_blank\" rel=\"noopener noreferrer\">{qname_text}</a>"
+            )
+        else:
+            qname_html = ""
+        images_html = html.escape(item.get("source_images", ""))
+        structured_html = html.escape(item.get("structured_json", ""))
         table_rows.append(
             "<tr>"
             f"<td>{qname_html}</td>"
-            f"<td>{image_html}</td>"
-            f"<td class=\"transcript\">{transcript_html}</td>"
+            f"<td class=\"images\">{images_html}</td>"
+            f"<td class=\"structured\"><pre>{structured_html}</pre></td>"
             "</tr>"
         )
 
     rows_html = "\n".join(table_rows)
-    title = html.escape(f"Transcript Report - {run_id}")
+    title = html.escape(f"Structured Output Report - {run_id}")
     subtitle = html.escape(
         f"Source run: {source_run_id} | Rows: {len(rows)}"
     )
@@ -166,13 +146,17 @@ def build_html_report(*, run_id: str, source_run_id: str, rows: list[dict[str, s
       width: 180px;
       white-space: nowrap;
     }}
-    td:nth-child(2), th:nth-child(2) {{
-      width: 220px;
-      white-space: nowrap;
-    }}
-    td.transcript {{
+    td.images, th:nth-child(2) {{
+      width: 260px;
       white-space: pre-wrap;
       word-break: break-word;
+    }}
+    td.structured pre {{
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
     }}
   </style>
 </head>
@@ -183,8 +167,8 @@ def build_html_report(*, run_id: str, source_run_id: str, rows: list[dict[str, s
     <thead>
       <tr>
         <th>Specimen ID</th>
-        <th>Image</th>
-        <th>Transcript</th>
+        <th>Source images</th>
+        <th>Structured output</th>
       </tr>
     </thead>
     <tbody>
@@ -197,7 +181,7 @@ def build_html_report(*, run_id: str, source_run_id: str, rows: list[dict[str, s
 
 
 def main() -> None:
-    merged_settings, _ = load_step_settings("transcript_report", SETTINGS_PATH)
+    merged_settings, _ = load_step_settings("structured_output_report", SETTINGS_PATH)
     settings = validate_settings(merged_settings)
 
     run_id = str(settings["run_id"]).strip()
@@ -205,15 +189,15 @@ def main() -> None:
 
     source_summary_file = resolve_path_from_root(
         PROJECT_ROOT,
-        f"app/output/pipeline_runs/{source_run_id}/transcript_batch_monitor.json",
+        f"app/output/pipeline_runs/{source_run_id}/structured_output_batch_monitor.json",
     )
     if not source_summary_file.exists():
-        raise FileNotFoundError(f"Step-3 summary file not found: {source_summary_file}")
+        raise FileNotFoundError(f"Step-7 summary file not found: {source_summary_file}")
 
-    step3_summary = load_json(source_summary_file)
-    responses_folder = str(step3_summary.get("data", {}).get("responses_folder", "")).strip()
+    step7_summary = load_json(source_summary_file)
+    responses_folder = str(step7_summary.get("data", {}).get("responses_folder", "")).strip()
     if not responses_folder:
-        raise ValueError("Missing responses folder in step-3 summary data.responses_folder")
+        raise ValueError("Missing responses folder in step-7 summary data.responses_folder")
 
     responses_root = resolve_path_from_root(PROJECT_ROOT, responses_folder)
     if not responses_root.exists() or not responses_root.is_dir():
@@ -226,17 +210,19 @@ def main() -> None:
     rows: list[dict[str, str]] = []
     for prediction_file in prediction_files:
         for payload in load_jsonl_rows(prediction_file):
-            row = {
-                "qname": extract_qname(payload),
-                "image_filename": extract_image_filename(payload),
-                "transcript": extract_transcript(payload),
-            }
-            rows.append(row)
+            raw_text = extract_response_text(payload)
+            rows.append(
+                {
+                    "qname": extract_qname(payload),
+                    "source_images": extract_source_images_display(payload),
+                    "structured_json": format_structured_text(raw_text),
+                }
+            )
 
     rows.sort(key=lambda item: (item.get("qname", "").lower(), item.get("qname", "")))
 
     run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{run_id}")
-    report_file = run_output_dir / "transcript_report.html"
+    report_file = run_output_dir / "structured_output_report.html"
     report_file.parent.mkdir(parents=True, exist_ok=True)
     archive_pipeline_settings(run_output_dir)
 
@@ -247,7 +233,7 @@ def main() -> None:
     log(f"Responses folder: {responses_root}")
     log(f"Prediction files: {len(prediction_files)}")
     log(f"Report rows: {len(rows)}")
-    log(f"Wrote transcript report: {report_file}")
+    log(f"Wrote structured output report: {report_file}")
 
 
 if __name__ == "__main__":

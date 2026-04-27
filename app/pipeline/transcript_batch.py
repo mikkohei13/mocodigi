@@ -4,7 +4,7 @@ Step 2:
 - Read uploaded specimen image records from step-1 records JSONL.
 - Build Gemini batch input JSONL and upload it to GCS.
 - Submit a Vertex Gemini batch job for transcription.
-- Persist one run-level summary JSON + per-specimen JSONL records.
+- Persist one run-level summary JSON + per-image JSONL records.
 """
 
 from __future__ import annotations
@@ -27,9 +27,9 @@ from utils.files import (
     load_jsonl_rows,
     resolve_path as resolve_path_from_root,
     save_json,
-    validate_json_file,
 )
 from utils.gcp import parse_gs_uri, resolve_adc_credentials_from_env, upload_file_to_gcs_uri
+from utils.pipeline_config import archive_pipeline_settings, load_step_settings
 from utils.runtime import (
     RUN_STATUS_FAILED,
     RUN_STATUS_FINISHED,
@@ -203,20 +203,35 @@ def load_records_from_jsonl(path: Path) -> list[dict[str, Any]]:
     return load_jsonl_rows(path)
 
 
-def latest_step1_records_by_folder(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    by_folder: dict[str, dict[str, Any]] = {}
-    for row in records:
-        folder_key = str(row.get("specimen_folder", "")).strip()
-        if not folder_key:
-            continue
-        by_folder[folder_key] = row
-    return by_folder
+def source_image_key(record: dict[str, Any], row_index: int) -> str:
+    folder_key = str(record.get("specimen_folder", "")).strip()
+    image_filename = str(
+        record.get("image_filename")
+        or record.get("selected_image")
+        or ""
+    ).strip()
+    if folder_key and image_filename:
+        return f"{folder_key}|{image_filename}"
+    if folder_key:
+        return f"{folder_key}|__row_{row_index}"
+    return f"__row_{row_index}"
+
+
+def latest_step1_records_by_image(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    by_image_key: dict[str, dict[str, Any]] = {}
+    for row_index, row in enumerate(records, start=1):
+        by_image_key[source_image_key(row, row_index)] = row
+    return by_image_key
 
 
 def build_batch_request_row(
     *,
     gcs_uri: str,
     document_long_id: str,
+    qname: str,
+    specimen_folder: str,
+    image_filename: str,
+    image_index: int | None,
     model_name: str,
     system_message: str,
     user_prompt: str,
@@ -232,6 +247,10 @@ def build_batch_request_row(
 
     return {
         "document_long_id": document_long_id,
+        "qname": qname or None,
+        "specimen_folder": specimen_folder or None,
+        "image_filename": image_filename or None,
+        "image_index": image_index,
         "request": {
             "systemInstruction": {"parts": [{"text": system_message}]},
             "contents": [
@@ -248,8 +267,7 @@ def build_batch_request_row(
     }
 
 
-def validate_settings(raw: dict[str, Any]) -> dict[str, Any]:
-    settings = raw.get("settings", {})
+def validate_settings(settings: dict[str, Any]) -> dict[str, Any]:
     required = [
         "run_id",
         "source_run_id",
@@ -295,12 +313,8 @@ def main() -> None:
     started_at_now = now_iso()
     log("Starting transcription batch submission run")
 
-    if not SETTINGS_PATH.exists():
-        raise FileNotFoundError(f"Settings file not found: {SETTINGS_PATH}")
-
-    validate_json_file(SETTINGS_PATH)
-    raw_settings_payload = load_json(SETTINGS_PATH)
-    settings = validate_settings(raw_settings_payload)
+    merged_settings, _ = load_step_settings("transcript_batch", SETTINGS_PATH)
+    settings = validate_settings(merged_settings)
     run_id = str(settings["run_id"]).strip()
     source_run_id = str(settings["source_run_id"]).strip()
     gcs_bucket = str(settings["gcs_bucket"]).strip()
@@ -333,6 +347,7 @@ def main() -> None:
     output_file = output_base
     records_file = output_base.with_name("transcript_batch.records.jsonl")
     local_batch_input_file = output_base.with_name("transcript_batch.input.jsonl")
+    archive_pipeline_settings(run_output_dir)
 
     batch_input_uri = f"gs://{gcs_bucket}/{gcs_prefix}/batch_jobs/{run_id}/requests.jsonl"
     batch_output_uri_prefix = f"gs://{gcs_bucket}/{gcs_prefix}/batch_jobs/{run_id}/output"
@@ -401,24 +416,30 @@ def main() -> None:
     )
 
     source_rows = load_records_from_jsonl(source_records_file)
-    source_latest_by_folder = latest_step1_records_by_folder(source_rows)
-    source_specimens = sorted(source_latest_by_folder.values(), key=lambda item: str(item.get("specimen_folder", "")))
+    source_latest_by_image = latest_step1_records_by_image(source_rows)
+    source_images = sorted(
+        source_latest_by_image.values(),
+        key=lambda item: (
+            str(item.get("specimen_folder", "")),
+            str(item.get("image_filename", "") or item.get("selected_image", "")),
+        ),
+    )
 
-    records_by_folder: dict[str, dict[str, Any]] = {}
+    records_by_key: dict[str, dict[str, Any]] = {}
     if records_file.exists():
         for item in load_records_from_jsonl(records_file):
-            folder_key = str(item.get("specimen_folder", "")).strip()
-            if folder_key:
-                records_by_folder[folder_key] = item
+            key = str(item.get("source_image_key", "")).strip()
+            if key:
+                records_by_key[key] = item
 
     def build_counts() -> dict[str, int]:
-        eligible = sum(1 for rec in records_by_folder.values() if rec.get("status") == "eligible")
-        queued = sum(1 for rec in records_by_folder.values() if rec.get("status") == "queued")
-        skipped = sum(1 for rec in records_by_folder.values() if rec.get("status") == "skipped")
-        failed = sum(1 for rec in records_by_folder.values() if rec.get("status") == "failed")
+        eligible = sum(1 for rec in records_by_key.values() if rec.get("status") == "eligible")
+        queued = sum(1 for rec in records_by_key.values() if rec.get("status") == "queued")
+        skipped = sum(1 for rec in records_by_key.values() if rec.get("status") == "skipped")
+        failed = sum(1 for rec in records_by_key.values() if rec.get("status") == "failed")
         return {
             "source_rows_total": len(source_rows),
-            "source_specimens_latest": len(source_specimens),
+            "source_images_latest": len(source_images),
             "eligible": eligible,
             "queued": queued,
             "skipped": skipped,
@@ -447,7 +468,7 @@ def main() -> None:
         },
         "data": {
             "counts": build_counts(),
-            "records_logged": len(records_by_folder),
+            "records_logged": len(records_by_key),
             "batch_job": None,
         },
     }
@@ -458,7 +479,7 @@ def main() -> None:
         run_output["last_updated_at"] = now_iso()
         run_output["finished_at"] = now_iso() if finished else None
         run_output["data"]["counts"] = build_counts()
-        run_output["data"]["records_logged"] = len(records_by_folder)
+        run_output["data"]["records_logged"] = len(records_by_key)
         save_json(output_file, run_output)
 
     persist_run(RUN_STATUS_RUNNING)
@@ -467,24 +488,31 @@ def main() -> None:
 
     queued_records: list[dict[str, Any]] = []
     queued_input_uris: list[str] = []
-    pending_specimens = source_specimens
+    pending_images = source_images
     if args.limit is not None:
-        pending_specimens = source_specimens[: args.limit]
-    limit_caused_incomplete = args.limit is not None and len(source_specimens) > len(pending_specimens)
+        pending_images = source_images[: args.limit]
+    limit_caused_incomplete = args.limit is not None and len(source_images) > len(pending_images)
 
     processed_since_flush = 0
 
     try:
-        for specimen in pending_specimens:
+        for row_index, specimen in enumerate(pending_images, start=1):
+            source_key = source_image_key(specimen, row_index)
             folder_key = str(specimen.get("specimen_folder", "")).strip()
+            image_filename = str(
+                specimen.get("image_filename")
+                or specimen.get("selected_image")
+                or ""
+            ).strip()
+            image_index_raw = specimen.get("image_index")
+            try:
+                image_index = int(image_index_raw) if image_index_raw is not None else None
+            except (TypeError, ValueError):
+                image_index = None
             record = {
-                "specimen_folder": folder_key,
-                "qname": specimen.get("qname"),
-                "document_long_id": specimen.get("document_id_long"),
-                "gcs_uri": specimen.get("gcs_uri"),
+                "source_image_key": source_key,
                 "status": "skipped",
                 "error": None,
-                "notes": [],
             }
 
             status = str(specimen.get("status", "")).strip()
@@ -493,7 +521,7 @@ def main() -> None:
 
             if status != "uploaded":
                 record["error"] = f"Source record status is '{status or 'missing'}', expected 'uploaded'."
-                records_by_folder[folder_key] = record
+                records_by_key[source_key] = record
                 append_jsonl(records_file, record)
                 processed_since_flush += 1
                 if processed_since_flush >= SUMMARY_FLUSH_EVERY:
@@ -503,7 +531,7 @@ def main() -> None:
 
             if not gcs_uri.startswith("gs://"):
                 record["error"] = "Missing or invalid gcs_uri in source record."
-                records_by_folder[folder_key] = record
+                records_by_key[source_key] = record
                 append_jsonl(records_file, record)
                 processed_since_flush += 1
                 if processed_since_flush >= SUMMARY_FLUSH_EVERY:
@@ -514,6 +542,10 @@ def main() -> None:
             batch_row = build_batch_request_row(
                 gcs_uri=gcs_uri,
                 document_long_id=document_long_id,
+                qname=str(specimen.get("qname", "")).strip(),
+                specimen_folder=folder_key,
+                image_filename=image_filename,
+                image_index=image_index,
                 model_name=model_name,
                 system_message=system_message,
                 user_prompt=user_prompt,
@@ -522,7 +554,7 @@ def main() -> None:
             queued_records.append(batch_row)
             queued_input_uris.append(gcs_uri)
             record["status"] = "eligible"
-            records_by_folder[folder_key] = record
+            records_by_key[source_key] = record
             append_jsonl(records_file, record)
 
             processed_since_flush += 1
@@ -566,12 +598,12 @@ def main() -> None:
         )
         run_output["data"]["batch_job"] = batch_job_payload
 
-        for folder_key, record in records_by_folder.items():
+        for source_key, record in records_by_key.items():
             if record.get("status") == "eligible":
                 queued_record = dict(record)
                 queued_record["status"] = "queued"
                 queued_record["batch_job_name"] = batch_job_payload.get("name")
-                records_by_folder[folder_key] = queued_record
+                records_by_key[source_key] = queued_record
                 append_jsonl(records_file, queued_record)
 
         final_status = RUN_STATUS_PARTIAL if limit_caused_incomplete else RUN_STATUS_FINISHED
