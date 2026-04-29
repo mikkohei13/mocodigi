@@ -14,9 +14,11 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
+import tempfile
 from typing import Any
 
 from google.cloud import storage
+import PIL.Image
 from utils.files import (
     append_jsonl,
     load_json,
@@ -49,6 +51,11 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
 SETTINGS_PATH = SCRIPT_DIR / "settings" / "upload_images_settings.json"
 SUMMARY_FLUSH_EVERY = 200
+
+# If an input JPG is very large, resize it before uploading to GCS.
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
+RESIZE_SCALE = 0.5
+JPEG_QUALITY = 90  # "compression 0.9" -> 90/100 in JPEG terms
 
 
 def record_key_from_payload(payload: dict[str, Any]) -> str:
@@ -393,12 +400,49 @@ def main() -> None:
                 log(f"Uploading {selected_image.name} -> {target_uri}")
 
                 try:
-                    gcs_uri = upload_file_to_gcs_blob(
-                        client=storage_client,
-                        bucket_name=gcs_bucket,
-                        blob_name=blob_name,
-                        local_file=selected_image,
-                    )
+                    local_file = selected_image
+                    tmp_resized_path: Path | None = None
+                    if selected_image.stat().st_size > MAX_IMAGE_BYTES:
+                        log(
+                            f"Image >10MB ({selected_image.stat().st_size} bytes); resizing to 50% "
+                            f"(JPEG quality={JPEG_QUALITY}) before upload."
+                        )
+                        with tempfile.TemporaryDirectory() as tmp_dir:
+                            tmp_resized_path = (
+                                Path(tmp_dir)
+                                / f"{selected_image.stem}.resized.jpg"
+                            )
+                            with PIL.Image.open(selected_image) as im:
+                                if im.mode != "RGB":
+                                    im = im.convert("RGB")
+                                new_w = max(1, int(im.width * RESIZE_SCALE))
+                                new_h = max(1, int(im.height * RESIZE_SCALE))
+                                resized = im.resize(
+                                    (new_w, new_h),
+                                    resample=PIL.Image.Resampling.LANCZOS,
+                                )
+                                resized.save(
+                                    tmp_resized_path,
+                                    format="JPEG",
+                                    quality=JPEG_QUALITY,
+                                    optimize=True,
+                                )
+
+                            gcs_uri = upload_file_to_gcs_blob(
+                                client=storage_client,
+                                bucket_name=gcs_bucket,
+                                blob_name=blob_name,
+                                local_file=tmp_resized_path,
+                            )
+
+                    else:
+                        gcs_uri = upload_file_to_gcs_blob(
+                            client=storage_client,
+                            bucket_name=gcs_bucket,
+                            blob_name=blob_name,
+                            local_file=local_file,
+                        )
+
                     record["gcs_uri"] = gcs_uri
                     record["status"] = "uploaded"
                     log(f"Uploaded successfully: {gcs_uri}")
