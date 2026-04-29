@@ -71,6 +71,8 @@ SUMMARY_FLUSH_EVERY = 200
 PAGE_SIZE = 100
 SLEEP_SECONDS_BETWEEN_DOCS = 0.1
 SLEEP_SECONDS_BETWEEN_IMAGE_DOWNLOADS = 1
+IMAGE_FETCH_RETRY_COUNT = 2
+IMAGE_FETCH_RETRY_DELAY_SECONDS = 15
 
 FINBIF_BASE_URL = "https://api.laji.fi"
 FINBIF_UNIT_LIST_URL = f"{FINBIF_BASE_URL}/warehouse/query/unit/list"
@@ -162,14 +164,34 @@ def fetch_finbif_json(*, url: str, params: dict[str, Any] | None = None) -> dict
     return payload
 
 
-def fetch_image_bytes(image_url: str) -> bytes:
-    resp = requests.get(
-        image_url,
-        headers=IMAGE_REQUEST_HEADERS,
-        timeout=60,
+def fetch_image_bytes(image_url: str) -> bytes | None:
+    """Return image bytes, or None if every attempt failed (caller continues with other images)."""
+    total_attempts = IMAGE_FETCH_RETRY_COUNT + 1
+    last_exception: Exception | None = None
+
+    for attempt in range(1, total_attempts + 1):
+        try:
+            resp = requests.get(
+                image_url,
+                headers=IMAGE_REQUEST_HEADERS,
+                timeout=60,
+            )
+            resp.raise_for_status()
+            return resp.content
+        except requests.RequestException as exc:
+            last_exception = exc
+            if attempt >= total_attempts:
+                break
+            log(
+                f"Image fetch failed (attempt {attempt}/{total_attempts}) for {image_url}: {exc}. "
+                f"Retrying in {IMAGE_FETCH_RETRY_DELAY_SECONDS}s."
+            )
+            time.sleep(IMAGE_FETCH_RETRY_DELAY_SECONDS)
+
+    log(
+        f"Image fetch gave up after {total_attempts} attempts for {image_url}: {last_exception!r}"
     )
-    resp.raise_for_status()
-    return resp.content
+    return None
 
 
 def parse_search_url_query_params(search_url: str) -> dict[str, list[str]]:
@@ -433,6 +455,9 @@ def main() -> None:
 
                     log(f"Downloading image for {qname}: {image_url} -> {image_filename}")
                     image_bytes = fetch_image_bytes(image_url)
+                    if image_bytes is None:
+                        continue
+
                     with image_path.open("wb") as f:
                         f.write(image_bytes)
                     time.sleep(SLEEP_SECONDS_BETWEEN_IMAGE_DOWNLOADS)

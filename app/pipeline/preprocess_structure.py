@@ -144,13 +144,14 @@ def preprocess_transcript(text: str) -> tuple[str, dict[str, object]]:
         return text, details
 
     # Extract QUADR.
-    quadr_pattern = re.compile(r"QU[A-Z]{1,2}R\.")
-    quadr_match = quadr_pattern.search(text)
-    if quadr_match:
-        text = quadr_pattern.sub("", text, count=1).strip()
-        details["remove_quadr"] = True
-    else:
-        details["remove_quadr"] = False
+#    quadr_pattern = re.compile(r"QU[A-Z]{1,2}R\.")
+#    quadr_match = quadr_pattern.search(text)
+#    if quadr_match:
+#        text = quadr_pattern.sub("", text, count=1).strip()
+#        details["remove_quadr"] = True
+#    else:
+#        details["remove_quadr"] = False
+
 
     # Extract http-uri identifier label data
     # Allow for spaces or dots in the identifier, convert to dots for the http-uri

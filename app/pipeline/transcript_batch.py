@@ -236,8 +236,11 @@ def build_batch_request_row(
     system_message: str,
     user_prompt: str,
     temperature: float,
+    max_output_tokens: int | None,
 ) -> dict[str, Any]:
     generation_config: dict[str, Any] = {"temperature": temperature}
+    if max_output_tokens is not None:
+        generation_config["maxOutputTokens"] = max_output_tokens
     if model_name == "gemini-3.1-pro-preview":
         generation_config["thinkingConfig"] = {"thinkingLevel": "LOW"}
     elif model_name == "gemini-3-flash-preview":
@@ -289,6 +292,19 @@ def validate_settings(settings: dict[str, Any]) -> dict[str, Any]:
             "Unsupported settings.model. Use one of: "
             + ", ".join(sorted(SUPPORTED_BATCH_MODELS))
         )
+
+    max_output_tokens_raw = settings.get("max_output_tokens")
+    if max_output_tokens_raw in ("", None):
+        settings["max_output_tokens"] = None
+    else:
+        try:
+            max_output_tokens = int(max_output_tokens_raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("settings.max_output_tokens must be an integer.") from exc
+        if max_output_tokens <= 0:
+            raise ValueError("settings.max_output_tokens must be greater than 0.")
+        settings["max_output_tokens"] = max_output_tokens
+
     return settings
 
 
@@ -322,6 +338,7 @@ def main() -> None:
     gcs_prefix = str(settings["gcs_prefix"]).strip("/")
     model_name = str(settings["model"]).strip()
     temperature = float(settings["temperature"])
+    max_output_tokens = settings.get("max_output_tokens")
     system_message = str(settings["system_message"]).strip()
     user_prompt = str(settings["user_prompt"]).strip()
     source_records_file_setting = str(
@@ -372,6 +389,7 @@ def main() -> None:
     log(f"Vertex location: {vertex_location}")
     log(f"Configured GCS location: {gcs_location}")
     log(f"Model: {model_name}")
+    log(f"Max output tokens: {max_output_tokens}")
     log(f"Batch input URI: {batch_input_uri}")
     log(f"Batch output URI prefix: {batch_output_uri_prefix}")
     log(f"Limit: {args.limit}")
@@ -463,6 +481,7 @@ def main() -> None:
             "gcs_location": gcs_location,
             "model": model_name,
             "temperature": temperature,
+            "max_output_tokens": max_output_tokens,
             "batch_input_uri": batch_input_uri,
             "batch_output_uri_prefix": batch_output_uri_prefix,
         },
@@ -550,6 +569,7 @@ def main() -> None:
                 system_message=system_message,
                 user_prompt=user_prompt,
                 temperature=temperature,
+                max_output_tokens=max_output_tokens,
             )
             queued_records.append(batch_row)
             queued_input_uris.append(gcs_uri)
