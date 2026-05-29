@@ -1,5 +1,5 @@
 {
-  "title": "HerbariumSpecimen",
+  "title": "SensitiveSpecimen",
   "description": "Structured data extracted from a herbarium specimen label.",
   "type": "object",
   "properties": {
@@ -18,35 +18,25 @@
       "default": null,
       "description": "Identifier given by the collector in the field, usually a number."
     },
-    "identifications": {
-      "type": "array",
-      "default": [],
-      "description": "All available taxonomic determinations found on the specimen. Add one object per determination in label order, including confirmed and revised determinations. Return an empty list if no identification information is present.",
-      "items": {
-        "type": "object",
-        "properties": {
-          "scientificName": {
-            "anyOf": [{"type": "string"}, {"type": "null"}],
-            "default": null,
-            "description": "Scientific name without authorship for this determination."
-          },
-          "scientificNameAuthorship": {
-            "anyOf": [{"type": "string"}, {"type": "null"}],
-            "default": null,
-            "description": "Author citation for the scientificName in this determination, and year if available."
-          },
-          "identifiedBy": {
-            "anyOf": [{"type": "string"}, {"type": "null"}],
-            "default": null,
-            "description": "Name(s) of the person(s) who made this determination, often indicated by 'det.', 'determ.', or 'conf.'. Separate multiple names with a semicolon."
-          },
-          "dateIdentified": {
-            "anyOf": [{"type": "string"}, {"type": "null"}],
-            "default": null,
-            "description": "Year or full date for this determination."
-          }
-        }
-      }
+    "scientificName": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Scientific name without authorship, preferring the most recent determination if multiple are present."
+    },
+    "scientificNameAuthorship": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Author citation for the scientificName, and year if available."
+    },
+    "identifiedBy": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Name(s) of the person(s) who determined the scientific name, often indicated by 'det.', 'determ.', or 'conf.'. Use the most recent determination if multiple are present. Separate multiple names with a semicolon."
+    },
+    "dateIdentified": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Year or full date of the (most recent) determination."
     },
     "family": {
       "anyOf": [{"type": "string"}, {"type": "null"}],
@@ -67,11 +57,6 @@
       "anyOf": [{"type": "string"}, {"type": "null"}],
       "default": null,
       "description": "Full locality description, preserving original wording and language. May include country, region, site name, and/or directions."
-    },
-    "quadratum": {
-      "anyOf": [{"type": "string"}, {"type": "null"}],
-      "default": null,
-      "description": "Quadratum number, often prefixed with 'QUADR.' or similar. None if this cannot be determined."
     },
     "country": {
       "anyOf": [{"type": "string"}, {"type": "null"}],
@@ -113,6 +98,11 @@
       "default": null,
       "description": "Longitude verbatim."
     },
+    "quadratum": {
+      "anyOf": [{"type": "string"}, {"type": "null"}],
+      "default": null,
+      "description": "Quadratum number, often prefixed with 'QUADR.' or similar. None if this cannot be determined."
+    },
     "elevation": {
       "anyOf": [{"type": "string"}, {"type": "null"}],
       "default": null,
@@ -137,21 +127,6 @@
       "anyOf": [{"type": "boolean"}, {"type": "null"}],
       "default": null,
       "description": "Interpretation of wildness: True if the specimen was collected from a cultivated plant or botanic garden. False if collected from a wild population. None if this cannot be determined."
-    },
-    "typeStatus": {
-      "anyOf": [{"type": "string"}, {"type": "null"}],
-      "default": null,
-      "description": "Taxonomic type designation, such as TYPE, holotype, ISOLECTOTYPE, etc."
-    },
-    "typeName": {
-      "anyOf": [{"type": "string"}, {"type": "null"}],
-      "default": null,
-      "description": "Scientific name of the type species with author names and taxon rank descriptors if present. Can be different from names listed in identifications. Usually shown in combination with typeStatus."
-    },
-    "chemicalNotes": {
-      "anyOf": [{"type": "string"}, {"type": "null"}],
-      "default": null,
-      "description": "Chemical analysis notes, such as thallus reactions, TLC/chemistry labels, etc."
     }
   }
 }

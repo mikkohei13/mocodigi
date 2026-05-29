@@ -116,3 +116,28 @@ Remove files from bucket:
    ```bash
    gcloud storage rm --recursive gs://mocodigi/mocodigi-pipeline/
    ```
+
+## Notes
+
+### Lichen herbarium specimens:
+
+New fields:
+
+- Exsiccatum
+- Habitat and substrate separately
+- Microscopic characters
+- Macroscopic characters
+
+Preprocessing for herbarium specimens:
+
+- Remove Helsinki collection name, since all are from Helsinki. Or remove herbarium detection completely.
+
+Post-processing for herbarium specimens:
+
+- Country name based on municipality name.
+- Coordinate system interpretation based on coordinates.
+
+??
+
+- County: is it on Kotka?
+

@@ -11,7 +11,7 @@ A system under development for digitizing pipeline for biological museum specime
 
 ### Code organization
 
-- Code is run from the command line.
+- Code is run on Docker Compose. Don't try to run Python scripts directly.
 - Main scripts are located in the `app/pipeline` folder.
 - Utility functions are in the `app/utils` folder`.
 

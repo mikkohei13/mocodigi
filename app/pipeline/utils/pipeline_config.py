@@ -38,9 +38,12 @@ def load_step_settings(
 
     The returned settings dict has the same shape step scripts expect today:
     `run_id`, `source_run_id`, shared GCS fields, and whatever step-specific
-    keys the step file defines. `source_run_id` resolves from
-    `pipeline.source_run_ids[step_name]` when present, otherwise falls back
-    to `pipeline.run_id` so straight-through runs need no overrides.
+    keys the step file defines.
+
+    `run_id` is pipeline-owned. `source_run_id` resolves with precedence:
+    1) `step_settings.source_run_id` (when non-empty),
+    2) `pipeline.source_run_ids[step_name]` (when non-empty),
+    3) `pipeline.run_id` fallback for straight-through runs.
     """
     if not PIPELINE_SETTINGS_PATH.exists():
         raise FileNotFoundError(
@@ -68,7 +71,9 @@ def load_step_settings(
         raise ValueError(
             "pipeline_settings.settings.source_run_ids must be an object if present."
         )
-    source_run_id = str(source_run_ids.get(step_name, run_id)).strip()
+    step_source_run_id = str(step_settings.get("source_run_id", "")).strip()
+    pipeline_source_run_id = str(source_run_ids.get(step_name, "")).strip()
+    source_run_id = step_source_run_id or pipeline_source_run_id or run_id
     if not source_run_id:
         raise ValueError(
             f"Empty source_run_id resolved for step '{step_name}'. Check "

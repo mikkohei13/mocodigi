@@ -53,6 +53,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
 SETTINGS_PATH = SCRIPT_DIR / "settings" / "structured_output_settings.json"
 SUMMARY_FLUSH_EVERY = 200
+MAX_LLM_INPUT_CHARS = 10_000
 SUPPORTED_BATCH_MODELS = {
     "gemini-3.1-pro-preview",
     "gemini-3-flash-preview",
@@ -586,6 +587,15 @@ def main() -> None:
                     persist_run(RUN_STATUS_RUNNING)
                     processed_since_flush = 0
                 continue
+            if len(aggregated_transcript) > MAX_LLM_INPUT_CHARS:
+                original_length = len(aggregated_transcript)
+                aggregated_transcript = aggregated_transcript[:MAX_LLM_INPUT_CHARS]
+                warning = (
+                    f"Warning: truncated aggregated transcript for record '{record_key}' "
+                    f"from {original_length} to {MAX_LLM_INPUT_CHARS} characters."
+                )
+                log(warning)
+                record["notes"].append(warning)
 
             batch_row = build_batch_request_row(
                 aggregated_transcript=aggregated_transcript,
