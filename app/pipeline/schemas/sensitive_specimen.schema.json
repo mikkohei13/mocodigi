@@ -1,18 +1,8 @@
 {
   "title": "SensitiveSpecimen",
-  "description": "Structured data extracted from a herbarium specimen label.",
+  "description": "Structured data extracted from a sensitive specimen label, plant, animal or fungi.",
   "type": "object",
   "properties": {
-    "collectionName": {
-      "anyOf": [{"type": "string"}, {"type": "null"}],
-      "default": null,
-      "description": "Full name of the source collection, herbarium, and/or museum."
-    },
-    "specimenIdentifier": {
-      "anyOf": [{"type": "string"}, {"type": "null"}],
-      "default": null,
-      "description": "Museum accession, catalog number, or other identifier assigned to the specimen."
-    },
     "collectorFieldNumber": {
       "anyOf": [{"type": "string"}, {"type": "null"}],
       "default": null,
@@ -37,11 +27,6 @@
       "anyOf": [{"type": "string"}, {"type": "null"}],
       "default": null,
       "description": "Year or full date of the (most recent) determination."
-    },
-    "family": {
-      "anyOf": [{"type": "string"}, {"type": "null"}],
-      "default": null,
-      "description": "Scientific family name if explicitly stated on the label, typically ending in 'aceae' or 'ae'."
     },
     "eventDate": {
       "anyOf": [{"type": "string"}, {"type": "null"}],
@@ -102,11 +87,6 @@
       "anyOf": [{"type": "string"}, {"type": "null"}],
       "default": null,
       "description": "Quadratum number, often prefixed with 'QUADR.' or similar. None if this cannot be determined."
-    },
-    "elevation": {
-      "anyOf": [{"type": "string"}, {"type": "null"}],
-      "default": null,
-      "description": "Elevation or altitude including units if available."
     },
     "habitat": {
       "anyOf": [{"type": "string"}, {"type": "null"}],

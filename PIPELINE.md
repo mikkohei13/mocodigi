@@ -111,16 +111,6 @@ Every step copies `pipeline_settings.json` into its run folder on first write, a
   - raw transcription response files: `transcript_batch_responses/<vertex-output-subpath>/...` (for example `prediction-*/predictions.jsonl`)
 - **Event model in records:** `poll`, `download`, `timeout`
 
-### Step 3C: Identify images with coordinates - `identify_coordinates.py`
-
-- Reads step-3 downloaded batch prediction rows and extracts coordinate strings from transcript text.
-- **Settings:** `app/pipeline/settings/identify_coordinates_settings.json` (+ `pipeline_settings.json`)
-- **Input contract:** step-3 summary (`transcript_batch_monitor.json` in the resolved `source_run_id` folder) with `data.responses_folder`; expects one or more `predictions.jsonl` files under that folder.
-- **Row parsing:** each JSONL row supplies `document_long_id`, `qname`, `image_filename`, and transcript text from `response.candidates[0].content.parts[0].text`.
-- **Coordinate matching:** tries registered finders in order; currently Finnish uniform grid coordinates (`{3–7 digits}-{2–7 digits}`). Only the first match per image is kept.
-- **Output contract:**
-  - Tab-separated report: `identify_coordinates.tsv` with columns `specimen_id`, `specimen_qname`, `image_filename`, `matched_coordinates` (`matched_coordinates` empty when none found)
-
 ### Step 4: Generate transcript report for reviewing transcriptions - `transcript_report.py`
 
 - Reads step-3 summary output, loads raw batch prediction rows from downloaded `predictions.jsonl` files, and produces a human-readable transcript report.
