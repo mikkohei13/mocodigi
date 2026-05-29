@@ -24,7 +24,7 @@ SETTINGS_PATH = SCRIPT_DIR / "settings" / "structured_output_report_settings.jso
 
 
 def validate_settings(settings: dict[str, Any]) -> dict[str, Any]:
-    required = ["run_id", "source_run_id"]
+    required = ["target_run_id", "source_run_id"]
     missing = [key for key in required if settings.get(key) in (None, "")]
     if missing:
         raise ValueError(f"Missing required settings keys: {missing}")
@@ -80,7 +80,7 @@ def format_structured_text(raw_text: str) -> str:
         return raw_text
 
 
-def build_html_report(*, run_id: str, source_run_id: str, rows: list[dict[str, str]]) -> str:
+def build_html_report(*, target_run_id: str, source_run_id: str, rows: list[dict[str, str]]) -> str:
     table_rows = []
     for item in rows:
         qname = item.get("qname", "")
@@ -103,7 +103,7 @@ def build_html_report(*, run_id: str, source_run_id: str, rows: list[dict[str, s
         )
 
     rows_html = "\n".join(table_rows)
-    title = html.escape(f"Structured Output Report - {run_id}")
+    title = html.escape(f"Structured Output Report - {target_run_id}")
     subtitle = html.escape(
         f"Source run: {source_run_id} | Rows: {len(rows)}"
     )
@@ -184,7 +184,7 @@ def main() -> None:
     merged_settings, _ = load_step_settings("structured_output_report", SETTINGS_PATH)
     settings = validate_settings(merged_settings)
 
-    run_id = str(settings["run_id"]).strip()
+    target_run_id = str(settings["target_run_id"]).strip()
     source_run_id = str(settings["source_run_id"]).strip()
 
     source_summary_file = resolve_path_from_root(
@@ -221,12 +221,12 @@ def main() -> None:
 
     rows.sort(key=lambda item: (item.get("qname", "").lower(), item.get("qname", "")))
 
-    run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{run_id}")
+    run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{target_run_id}")
     report_file = run_output_dir / "structured_output_report.html"
     report_file.parent.mkdir(parents=True, exist_ok=True)
     archive_pipeline_settings(run_output_dir)
 
-    report_html = build_html_report(run_id=run_id, source_run_id=source_run_id, rows=rows)
+    report_html = build_html_report(target_run_id=target_run_id, source_run_id=source_run_id, rows=rows)
     report_file.write_text(report_html, encoding="utf-8")
 
     log(f"Source summary file: {source_summary_file}")

@@ -39,7 +39,7 @@ SETTINGS_PATH = SCRIPT_DIR / "settings" / "preprocess_structure_settings.json"
 
 
 def validate_settings(settings: dict[str, Any]) -> dict[str, Any]:
-    required = ["run_id", "source_run_id"]
+    required = ["target_run_id", "source_run_id"]
     missing = [key for key in required if settings.get(key) in (None, "")]
     if missing:
         raise ValueError(f"Missing required settings keys: {missing}")
@@ -246,14 +246,14 @@ def main() -> None:
     merged_settings, _ = load_step_settings("preprocess_structure", SETTINGS_PATH)
     settings = validate_settings(merged_settings)
 
-    run_id = str(settings["run_id"]).strip()
+    target_run_id = str(settings["target_run_id"]).strip()
     source_run_id = str(settings["source_run_id"]).strip()
     source_summary_file = resolve_path_from_root(
         PROJECT_ROOT,
         f"app/output/pipeline_runs/{source_run_id}/transcript_batch_monitor.json",
     )
 
-    run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{run_id}")
+    run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{target_run_id}")
     output_file = run_output_dir / "preprocess_structure.json"
     records_file = run_output_dir / "preprocess_structure.records.jsonl"
     preprocessed_jsonl_file = run_output_dir / "preprocess_structure.jsonl"
@@ -312,7 +312,7 @@ def main() -> None:
         "last_updated_at": now_iso(),
         "error": None,
         "settings": {
-            "run_id": run_id,
+            "target_run_id": target_run_id,
             "source_run_id": source_run_id,
             "source_summary_file": str(source_summary_file),
         },

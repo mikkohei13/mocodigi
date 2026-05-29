@@ -2,9 +2,11 @@
 
 The pipeline uses two layers of settings files:
 
-1. `app/pipeline/settings/pipeline_settings.json` holds run-level orchestration
-   (the target `run_id`, optional per-step `source_run_ids` overrides for
-   branching, and shared infra like GCS bucket/location/prefix).
+1. `app/pipeline/settings/pipeline_settings.json` holds run-level orchestration:
+   - `target_run_id`: where this run's outputs are written.
+   - `source_run_id` (optional): which prior run folder to read inputs from.
+     Omit or leave empty for straight-through runs; defaults to `target_run_id`.
+   - Shared infra: `gcs_bucket`, `gcs_location`, `gcs_prefix`.
 2. Each step has its own `<step>_settings.json` with step-specific params
    (prompts, model, schema path, etc.).
 
@@ -36,14 +38,14 @@ def load_step_settings(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Load pipeline_settings.json and merge it with a step settings file.
 
-    The returned settings dict has the same shape step scripts expect today:
-    `run_id`, `source_run_id`, shared GCS fields, and whatever step-specific
-    keys the step file defines.
+    The returned dict contains:
+    - `target_run_id`: output folder for this run (required, from pipeline settings)
+    - `source_run_id`: input folder to read from (defaults to `target_run_id`)
+    - shared GCS fields
+    - all step-specific keys from the step settings file
 
-    `run_id` is pipeline-owned. `source_run_id` resolves with precedence:
-    1) `step_settings.source_run_id` (when non-empty),
-    2) `pipeline.source_run_ids[step_name]` (when non-empty),
-    3) `pipeline.run_id` fallback for straight-through runs.
+    `target_run_id` and `source_run_id` are always sourced from pipeline_settings.json.
+    Any `target_run_id` or `source_run_id` keys in step files are silently ignored.
     """
     if not PIPELINE_SETTINGS_PATH.exists():
         raise FileNotFoundError(
@@ -59,39 +61,27 @@ def load_step_settings(
     step_payload = load_json(step_settings_path)
     step_settings = step_payload.get("settings", {}) or {}
 
-    run_id = str(pipeline_settings.get("run_id", "")).strip()
-    if not run_id:
+    target_run_id = str(pipeline_settings.get("target_run_id", "")).strip()
+    if not target_run_id:
         raise ValueError(
-            "Missing pipeline_settings.settings.run_id in "
+            "Missing pipeline_settings.settings.target_run_id in "
             f"{PIPELINE_SETTINGS_PATH}"
         )
 
-    source_run_ids = pipeline_settings.get("source_run_ids", {}) or {}
-    if not isinstance(source_run_ids, dict):
-        raise ValueError(
-            "pipeline_settings.settings.source_run_ids must be an object if present."
-        )
-    step_source_run_id = str(step_settings.get("source_run_id", "")).strip()
-    pipeline_source_run_id = str(source_run_ids.get(step_name, "")).strip()
-    source_run_id = step_source_run_id or pipeline_source_run_id or run_id
-    if not source_run_id:
-        raise ValueError(
-            f"Empty source_run_id resolved for step '{step_name}'. Check "
-            f"pipeline_settings.source_run_ids.{step_name} or run_id."
-        )
+    source_run_id = str(pipeline_settings.get("source_run_id", "")).strip() or target_run_id
 
     merged: dict[str, Any] = {
-        "run_id": run_id,
+        "target_run_id": target_run_id,
         "source_run_id": source_run_id,
     }
     for shared_key in SHARED_KEYS:
         if shared_key in pipeline_settings:
             merged[shared_key] = pipeline_settings[shared_key]
 
-    # Step-specific keys take effect on top of shared ones, but the pipeline
-    # file is the single source of truth for run_id / source_run_id.
+    # Step-specific keys are merged last; pipeline file is the sole source for
+    # target_run_id and source_run_id.
     for key, value in step_settings.items():
-        if key in ("run_id", "source_run_id"):
+        if key in ("target_run_id", "source_run_id"):
             continue
         merged[key] = value
 

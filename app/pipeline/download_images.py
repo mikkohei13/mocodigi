@@ -2,8 +2,8 @@
 Step 0: Download document images from FinBIF based on a laji.fi images search URL.
 
 This script is settings-driven and writes durable run artifacts to:
-  app/output/pipeline_runs/<run_id>/download_images.json
-  app/output/pipeline_runs/<run_id>/download_images.records.jsonl
+  app/output/pipeline_runs/<target_run_id>/download_images.json
+  app/output/pipeline_runs/<target_run_id>/download_images.records.jsonl
 
 On-disk output (image dataset):
   app/<image_folder_name>/<lastChar>/<qname>/
@@ -80,7 +80,7 @@ FINBIF_DOCUMENT_URL = f"{FINBIF_BASE_URL}/warehouse/query/document"
 
 
 def validate_settings(settings: dict[str, Any]) -> dict[str, Any]:
-    required = ["run_id", "image_folder_name", "search_url"]
+    required = ["target_run_id", "image_folder_name", "search_url"]
     missing = [key for key in required if not settings.get(key)]
     if missing:
         raise ValueError(f"Missing required settings keys: {missing}")
@@ -253,13 +253,13 @@ def main() -> None:
     merged_settings, _ = load_step_settings("download_images", SETTINGS_PATH)
     settings = validate_settings(merged_settings)
 
-    run_id = str(settings["run_id"]).strip()
+    target_run_id = str(settings["target_run_id"]).strip()
     search_url = str(settings["search_url"]).strip()
     image_folder_name = str(settings["image_folder_name"]).strip()
 
     images_root = resolve_images_root(PROJECT_ROOT, image_folder_name)
 
-    run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{run_id}")
+    run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{target_run_id}")
     output_file = run_output_dir / "download_images.json"
     records_file = output_file.with_name("download_images.records.jsonl")
     archive_pipeline_settings(run_output_dir)
@@ -314,7 +314,7 @@ def main() -> None:
         "last_updated_at": now_iso(),
         "error": None,
         "settings": {
-            "run_id": run_id,
+            "target_run_id": target_run_id,
             "image_folder_name": image_folder_name,
             "image_root": str(images_root),
             "search_url": search_url,

@@ -69,7 +69,7 @@ def is_terminal_job_state(job_state: str) -> bool:
 
 def validate_settings(settings: dict[str, Any]) -> dict[str, Any]:
     required = [
-        "run_id",
+        "target_run_id",
         "source_run_id",
     ]
     missing = [key for key in required if settings.get(key) in (None, "")]
@@ -111,7 +111,7 @@ def main() -> None:
     merged_settings, _ = load_step_settings("structured_output_batch_monitor", SETTINGS_PATH)
     settings = validate_settings(merged_settings)
 
-    run_id = str(settings["run_id"]).strip()
+    target_run_id = str(settings["target_run_id"]).strip()
     source_run_id = str(settings["source_run_id"]).strip()
     source_summary_file = resolve_path_from_root(
         PROJECT_ROOT,
@@ -123,7 +123,7 @@ def main() -> None:
         ).strip(),
     )
 
-    run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{run_id}")
+    run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{target_run_id}")
     output_file = run_output_dir / "structured_output_batch_monitor.json"
     records_file = output_file.with_name("structured_output_batch_monitor.records.jsonl")
     download_root = run_output_dir / "structured_output_batch_responses"
@@ -144,7 +144,7 @@ def main() -> None:
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(adc_credentials_file)
 
     log(f"Settings file: {SETTINGS_PATH}")
-    log(f"Run id: {run_id}")
+    log(f"Target run id: {target_run_id}")
     log(f"Source run id: {source_run_id}")
     log(f"Source summary file: {source_summary_file}")
     log(f"Project: {project_id}")
@@ -230,7 +230,7 @@ def main() -> None:
         "last_updated_at": now_iso(),
         "error": None,
         "settings": {
-            "run_id": run_id,
+            "target_run_id": target_run_id,
             "source_run_id": source_run_id,
             "source_summary_file": str(source_summary_file),
             "google_cloud_project": project_id,

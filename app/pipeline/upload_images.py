@@ -97,7 +97,7 @@ def pick_jpgs(folder: Path) -> list[Path]:
 
 def validate_settings(settings: dict[str, Any]) -> dict[str, Any]:
     required = [
-        "run_id",
+        "target_run_id",
         "input_dir",
         "gcs_bucket",
         "gcs_location",
@@ -144,8 +144,8 @@ def main() -> None:
 
     input_dir = resolve_path_from_root(PROJECT_ROOT, settings["input_dir"])
 
-    run_id = str(settings["run_id"]).strip()
-    run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{run_id}")
+    target_run_id = str(settings["target_run_id"]).strip()
+    run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{target_run_id}")
     output_file = run_output_dir / "upload_images.json"
     records_file = output_file.with_name("upload_images.records.jsonl")
     archive_pipeline_settings(run_output_dir)
@@ -272,7 +272,7 @@ def main() -> None:
         "last_updated_at": now_iso(),
         "error": None,
         "settings": {
-            "run_id": run_id,
+            "target_run_id": target_run_id,
             "google_cloud_project": project_id,
             "gcs_location": gcs_location,
             "input_dir": str(input_dir),

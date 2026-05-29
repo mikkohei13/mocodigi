@@ -119,6 +119,8 @@ Remove files from bucket:
 
 ## Notes
 
+Batch jobs can be canceled at https://console.cloud.google.com/vertex-ai/batch-predictions
+
 ### Lichen herbarium specimens:
 
 New fields:

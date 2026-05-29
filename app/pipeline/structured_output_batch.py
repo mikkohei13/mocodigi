@@ -314,7 +314,7 @@ def build_batch_request_row(
 
 def validate_settings(settings: dict[str, Any]) -> dict[str, Any]:
     required = [
-        "run_id",
+        "target_run_id",
         "source_run_id",
         "gcs_bucket",
         "gcs_location",
@@ -361,7 +361,7 @@ def main() -> None:
 
     merged_settings, _ = load_step_settings("structured_output_batch", SETTINGS_PATH)
     settings = validate_settings(merged_settings)
-    run_id = str(settings["run_id"]).strip()
+    target_run_id = str(settings["target_run_id"]).strip()
     source_run_id = str(settings["source_run_id"]).strip()
     gcs_bucket = str(settings["gcs_bucket"]).strip()
     gcs_location = str(settings["gcs_location"]).strip()
@@ -395,7 +395,7 @@ def main() -> None:
     ).strip()
     source_records_file = resolve_path_from_root(PROJECT_ROOT, source_records_file_setting)
 
-    run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{run_id}")
+    run_output_dir = resolve_path_from_root(PROJECT_ROOT, f"app/output/pipeline_runs/{target_run_id}")
     output_base = run_output_dir / "structured_output_batch.json"
     output_file = output_base
     records_file = output_base.with_name("structured_output_batch.records.jsonl")
@@ -403,10 +403,10 @@ def main() -> None:
     archive_pipeline_settings(run_output_dir)
 
     batch_input_uri = (
-        f"gs://{gcs_bucket}/{gcs_prefix}/batch_jobs/{run_id}/structured_requests.jsonl"
+        f"gs://{gcs_bucket}/{gcs_prefix}/batch_jobs/{target_run_id}/structured_requests.jsonl"
     )
     batch_output_uri_prefix = (
-        f"gs://{gcs_bucket}/{gcs_prefix}/batch_jobs/{run_id}/structured_output"
+        f"gs://{gcs_bucket}/{gcs_prefix}/batch_jobs/{target_run_id}/structured_output"
     )
 
     project_id = resolve_project_id(settings=settings, source_summary=source_summary)
@@ -421,7 +421,7 @@ def main() -> None:
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(adc_credentials_file)
 
     log(f"Settings file: {SETTINGS_PATH}")
-    log(f"Run id: {run_id}")
+    log(f"Target run id: {target_run_id}")
     log(f"Source run id: {source_run_id}")
     log(f"Source summary file: {source_summary_file}")
     log(f"Source records file: {source_records_file}")
@@ -456,10 +456,8 @@ def main() -> None:
             "attempting to resume."
         )
         existing_job_name = (
-            existing_output.get("data", {}).get("batch_job", {}).get("name")
-            if isinstance(existing_output, dict)
-            else None
-        )
+            (existing_output.get("data") or {}).get("batch_job") or {}
+        ).get("name") if isinstance(existing_output, dict) else None
         if existing_job_name:
             log(f"Batch job already submitted in existing run: {existing_job_name}")
             return
@@ -512,7 +510,7 @@ def main() -> None:
         "last_updated_at": now_iso(),
         "error": None,
         "settings": {
-            "run_id": run_id,
+            "target_run_id": target_run_id,
             "source_run_id": source_run_id,
             "source_summary_file": str(source_summary_file),
             "source_records_file": str(source_records_file),
