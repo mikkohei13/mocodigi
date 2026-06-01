@@ -183,7 +183,7 @@ Every step copies `pipeline_settings.json` into its run folder on first write, a
 - **Settings:** `app/pipeline/settings/structured_output_excel_settings.json` (+ `pipeline_settings.json`)
 - **Sampling:** random subset of rows; proportion is a constant in the script (`SAMPLE_FRACTION`, default 10%).
 - **Response parsing:** JSON object from `response.candidates[].content.parts[].text`; top-level `document_long_id` and `processed_time` are taken from each JSONL row.
-- **Output contract:** Excel workbook `structured_output_sample.xlsx` with columns `document_long_id`, then one column per key present in any sampled structured object (sorted), then `processed_time`.
+- **Output contract:** Excel workbook `structured_output_sample.xlsx` with columns `reviewed` (blank), `document_long_id` (hyperlink), structured fields in fixed schema order plus any extra keys (sorted), then `processed_time`. Run summary `structured_output_excel.json` with `run_status: finished` when complete; the step exits without overwriting if that summary already exists for `target_run_id`.
 
 ### Step 8: Do quality control analysis and report
 
