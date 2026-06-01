@@ -66,12 +66,12 @@
     "coordinates": {
       "anyOf": [{"type": "string"}, {"type": "null"}],
       "default": null,
-      "description": "Verbatim coordinate string including punctuation - may be in a modern or historical format."
+      "description": "Verbatim coordinate string including punctuation - may be in a modern or historical format. Note that also numbers prefixed with 'Grid 27' or 'QUADR.' are coordinates."
     },
     "coordinateSystemInterpretation": {
       "anyOf": [{"type": "string"}, {"type": "null"}],
       "default": null,
-      "description": "Interpretation of the coordinate system used, e.g. 'UTM', 'WGS84', or such. None if this cannot be determined."
+      "description": "Interpretation of the coordinate system used, e.g. 'Grid 27', 'QUADR.','UTM', 'WGS84', or such. None if this cannot be determined."
     },
     "latitude": {
       "anyOf": [{"type": "string"}, {"type": "null"}],
