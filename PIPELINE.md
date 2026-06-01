@@ -36,7 +36,7 @@ Each step merges the two files at load time. Scripts never read `run_id` or GCS 
 
 With this config, `structured_output_batch.py` reads its step-5 input from `app/output/pipeline_runs/h_lichen_collection/` (the completed transcription run) but writes its own output into `app/output/pipeline_runs/h_lichen_collection-200/`. Any step not listed in `source_run_ids` defaults its `source_run_id` to the current `run_id`, so plain straight-through runs need no overrides.
 
-The step keys used in `source_run_ids` match the script base names: `download_images`, `upload_images`, `transcript_batch`, `transcript_batch_monitor`, `identify_coordinates`, `transcript_report`, `preprocess_structure`, `structured_output_batch`, `structured_output_batch_monitor`, `structured_output_report`.
+The step keys used in `source_run_ids` match the script base names: `download_images`, `upload_images`, `transcript_batch`, `transcript_batch_monitor`, `identify_coordinates`, `transcript_report`, `preprocess_structure`, `structured_output_batch`, `structured_output_batch_monitor`, `structured_output_report`, `structured_output_excel`.
 
 ### Archival
 
@@ -177,6 +177,14 @@ Every step copies `pipeline_settings.json` into its run folder on first write, a
 - **Output contract:**
   - HTML report: `structured_output_report.html` (table with columns `Specimen ID`, `Source images`, and `Structured output` with pretty-printed JSON, sorted by specimen id)
 
+### Step 7C: Export a random sample of structured output to Excel - `structured_output_excel.py`
+
+- Same inputs as step 7B: step-7 monitor summary and downloaded `predictions.jsonl` files.
+- **Settings:** `app/pipeline/settings/structured_output_excel_settings.json` (+ `pipeline_settings.json`)
+- **Sampling:** random subset of rows; proportion is a constant in the script (`SAMPLE_FRACTION`, default 10%).
+- **Response parsing:** JSON object from `response.candidates[].content.parts[].text`; top-level `document_long_id` and `processed_time` are taken from each JSONL row.
+- **Output contract:** Excel workbook `structured_output_sample.xlsx` with columns `document_long_id`, then one column per key present in any sampled structured object (sorted), then `processed_time`.
+
 ### Step 8: Do quality control analysis and report
 
 - To be done later.
@@ -226,3 +234,4 @@ Every step copies `pipeline_settings.json` into its run folder on first write, a
   - `python3 app/pipeline/structured_output_batch.py [--limit N]`
   - `python3 app/pipeline/structured_output_batch_monitor.py [--poll-seconds S] [--timeout-hours H]`
   - `python3 app/pipeline/structured_output_report.py`
+  - `python3 app/pipeline/structured_output_excel.py`
