@@ -4,6 +4,7 @@ Step 7B alternative:
 - Same discovery as structured_output_report (step-7 summary → predictions.jsonl).
 - Parses Gemini JSON from response.candidates[].content.parts[].text.
 - Writes one row per sampled record: empty reviewed column, document_long_id (hyperlink),
+  h_number (from preprocess_structure.jsonl when joined on document_long_id),
   structured fields (schema order, then any extra keys), processed_time.
 """
 
@@ -124,7 +125,12 @@ def _cell_has_content(value: Any) -> bool:
     return True
 
 
-def drop_columns_empty_on_all_data_rows(ws: Worksheet, *, keep_first_column: bool = True) -> None:
+def drop_columns_empty_on_all_data_rows(
+    ws: Worksheet,
+    *,
+    keep_first_column: bool = True,
+    never_drop_headers: frozenset[str] = frozenset(),
+) -> None:
     """Remove columns where every data row (row 2+) is empty. Column 1 (reviewed) is never removed."""
     if ws.max_row < 2:
         # No data rows: drop every column except reviewed.
@@ -136,6 +142,9 @@ def drop_columns_empty_on_all_data_rows(ws: Worksheet, *, keep_first_column: boo
     # Delete right-to-left so indices stay valid.
     for col in range(ws.max_column, 0, -1):
         if keep_first_column and col == 1:
+            continue
+        header_val = ws.cell(row=1, column=col).value
+        if isinstance(header_val, str) and header_val in never_drop_headers:
             continue
         has_content = False
         for row in range(first_data_row, last_data_row + 1):
@@ -149,6 +158,31 @@ def drop_columns_empty_on_all_data_rows(ws: Worksheet, *, keep_first_column: boo
 def build_field_columns(keys_from_data: set[str]) -> list[str]:
     extras = sorted(k for k in keys_from_data if k not in _SCHEMA_KEYS)
     return [*SCHEMA_PROPERTY_ORDER, *extras]
+
+
+def load_preprocess_h_number_by_document(
+    preprocess_jsonl: Path,
+) -> dict[str, Any]:
+    """Map document_long_id -> data.preprocess_details.h_number from preprocess_structure.jsonl."""
+    out: dict[str, Any] = {}
+    if not preprocess_jsonl.is_file():
+        return out
+    for row in load_jsonl_rows(preprocess_jsonl):
+        if not isinstance(row, dict):
+            continue
+        doc_id = str(row.get("document_long_id", "")).strip()
+        if not doc_id:
+            continue
+        data = row.get("data")
+        if not isinstance(data, dict):
+            continue
+        details = data.get("preprocess_details")
+        if not isinstance(details, dict):
+            continue
+        if "h_number" not in details:
+            continue
+        out[doc_id] = details["h_number"]
+    return out
 
 
 def main() -> None:
@@ -191,6 +225,19 @@ def main() -> None:
     if not prediction_files:
         raise FileNotFoundError(f"No predictions.jsonl files under {responses_root}")
 
+    preprocess_jsonl_setting = str(
+        merged_settings.get(
+            "preprocess_jsonl",
+            f"app/output/pipeline_runs/{source_run_id}/preprocess_structure.jsonl",
+        )
+    ).strip()
+    preprocess_jsonl = resolve_path_from_root(PROJECT_ROOT, preprocess_jsonl_setting)
+    h_number_by_doc = load_preprocess_h_number_by_document(preprocess_jsonl)
+    if not preprocess_jsonl.is_file():
+        log(f"Preprocess JSONL not found (h_number column will be empty): {preprocess_jsonl}")
+    else:
+        log(f"Loaded h_number for {len(h_number_by_doc)} document(s) from {preprocess_jsonl}")
+
     records: list[tuple[str, str, dict[str, Any] | None]] = []
     for prediction_file in prediction_files:
         for payload in load_jsonl_rows(prediction_file):
@@ -214,14 +261,16 @@ def main() -> None:
     wb = Workbook()
     ws = wb.active
     ws.title = "structured_output"
-    header = ["reviewed", "document_long_id", *ordered_fields, "processed_time"]
+    header = ["reviewed", "document_long_id", "h_number", *ordered_fields, "processed_time"]
     ws.append(header)
 
     link_font = Font(color="0563C1", underline="single")
     doc_col = 2  # 1-based column index for document_long_id
 
     for row_idx, (doc_id, proc_time, structured) in enumerate(sampled, start=2):
-        row: list[Any] = ["", doc_id]
+        h_raw = h_number_by_doc.get(doc_id)
+        h_cell = excel_cell_value(h_raw) if h_raw is not None else ""
+        row: list[Any] = ["", doc_id, h_cell]
         for key in ordered_fields:
             if structured and key in structured:
                 row.append(excel_cell_value(structured.get(key)))
@@ -234,7 +283,7 @@ def main() -> None:
             cell.hyperlink = Hyperlink(ref=cell.coordinate, target=doc_id)
             cell.font = link_font
 
-    drop_columns_empty_on_all_data_rows(ws)
+    drop_columns_empty_on_all_data_rows(ws, never_drop_headers=frozenset({"h_number"}))
 
     run_output_dir.mkdir(parents=True, exist_ok=True)
     archive_pipeline_settings(run_output_dir)
@@ -259,6 +308,7 @@ def main() -> None:
                 "target_run_id": target_run_id,
                 "source_run_id": source_run_id,
                 "sample_fraction": SAMPLE_FRACTION,
+                "preprocess_jsonl": preprocess_jsonl_setting,
             },
             "data": {
                 "excel_file": out_path.name,
