@@ -45,10 +45,12 @@ BUCKET = "mocodigi"
 PREFIX = "mocodigi-pipeline/"
 OUTPUT_FILE = "results.json"
 PROMPT = "Does this herbarium specimen image show visible flowers? " \
-    "Answer only 'yes' or 'no'. " \
-    "If unclear due to image quality or specimen condition, answer 'no'."
-LIMIT = 50
-MAX_OUTPUT_TOKENS = 100
+    "Answer only 'yes' or 'no'. or 'unknown'. " \
+    "If you don't know the answer, answer 'unknown'. " \
+    "Do nothing else, do not add any extra text or explanation. " \
+    "Don't think too much, just answer the question. " 
+LIMIT = 200
+MAX_OUTPUT_TOKENS = 200
 POLL_TIMEOUT_HOURS = 24
 MODEL = "gemini-2.5-flash"
 DELAY = 60 
